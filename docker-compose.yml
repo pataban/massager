@@ -1,0 +1,28 @@
+version: "3.0"
+
+services:
+    msgServer:
+        image: msgserver
+        restart: always
+        environment:
+            DB_USER: root
+            DB_PASS: MYPassword123
+            DB_HOST: db
+            DB_NAME: msgDatabase
+        ports:
+            - 5000:5000
+            - 5002:5002
+
+    db:
+        image: mariadb
+        restart: always
+        environment:
+            MYSQL_ROOT_PASSWORD: MYPassword123
+        ports:
+            - 5001:3306
+        
+    adminer:
+        image: adminer
+        restart: always
+        ports: 
+            - 8080:8080
