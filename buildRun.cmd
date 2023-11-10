@@ -1,3 +1,0 @@
-docker build -t msgserver .
-::docker run -p 5000:5000 -it --rm --name msgServer msgserver 
-docker-compose up
