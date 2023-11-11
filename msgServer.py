@@ -83,7 +83,7 @@ def apiRegisterUser(serverConn, payload):
             id=payload["userId"], password=payload["password"])
         resultProxy = connection.execute(query)
         activeUsers[payload["userId"]] = serverConn
-        payload = "Registered successfully"
+        payload = REGISTER_OK
         payload = {"action": "register", "data": payload}
         serverConn.send(payload)
         activeUsersForceUpdateUserList()
@@ -116,7 +116,7 @@ def apiLoginUser(serverConn, payload):
         return
 
     activeUsers[payload["userId"]] = serverConn
-    payload = "Login successfull"
+    payload = LOGIN_OK
     payload = {"action": "login", "data": payload}
     serverConn.send(payload)
     activeUsersForceUpdateUserList()
@@ -130,7 +130,7 @@ def apiLogoutUser(serverConn, payload):
         return
 
     activeUsers.pop(payload["userId"])
-    payload = "Logout successfull"
+    payload = LOGOUT_OK
     payload = {"action": "logout", "data": payload}
     serverConn.send(payload)
     activeUsersForceUpdateUserList()

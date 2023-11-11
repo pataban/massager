@@ -66,13 +66,13 @@ class ClientHandler(threading.Thread):
                 object=object["data"]
 
                 if(action=="login"):
-                    self.gui.loginUser(object)
+                    self.gui.recieveRegisterLoginUser(object)
                 if(action=="logout"):
-                    self.gui.logoutUser(object)
+                    self.gui.recievelogoutUser(object)
                 if(action=="register"):
-                    self.gui.registerUser(object)
+                    self.gui.recieveRegisterLoginUser(object)
                 if(action=="getUsers"):
-                    self.gui.updateUserList(object)
+                    self.gui.recieveUpdateUserList(object)
                 if(action=="recieve"):
                     self.gui.recieveMessage(object)
                 """if(action=="send"):
