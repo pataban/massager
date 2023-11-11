@@ -1,0 +1,76 @@
+
+server
+	api
+		wysyłanie wiadomości 
+			do wybranego klienta
+			do wszystkich	// albo all chat
+		odbieranie wiadomości od wybranego user przez zalogowanego user
+			old
+			new
+		logowanie
+			mozliwe kilka user
+		rejestracja
+		get lista user 
+			zalogowany
+			nie zalogowwany
+		mark message as red
+			single message
+	data
+		use ORM for db conn, mapping
+			SQLAlchemy
+			Django ORM
+			peewee
+		messages
+			date time of sent
+			status (aktualizowaną kiedy użytkownik wyświetli wiadomość)
+		dane logowania
+	Docker
+		server (dockerfile)
+			całkowicie zautomatyzowany
+				aplikacja serwera ma startować wraz z uruchomieniem obrazu
+			konfiguracja za pomocą zmiennych środowiskowych
+				DB connection (connection-string)
+		DB (osobne)
+			MySQL (np. MariaDB) lub PgSQL (np. Postgres)
+		docker-compose
+			automatyczne uruchomienie całego stosu rozwiązań (serwera czatu , DB)
+client
+	GUI
+		logowanie
+		rejestracja
+		chat with selected user
+			status aktywwnosci (zalogowany/nie zalogowany lub dostępny/niedostępny)
+			message has
+				date time of sent
+				status (aktualizowaną kiedy użytkownik wyświetli wiadomość)
+				info od kogo została przesłana
+			load old messages
+			podział prawo-lewo jako nadawca-odbiorca
+			Wiadomości wysłane odróżniają się wizualnie od odebranych
+		lista user (chat list)
+			status aktywności (zalogowany/nie zalogowany lub dostępny/niedostępny)
+			liczba nieprzeczytanych wiadomości
+			sorted
+				last sent message
+				activity
+			select opens chat
+websocket 
+	start by login
+	client async (nie blokuje GUI)
+	server - sent, client - react
+		zarejestrował się nowy użytkownik
+			klient: odświeża listę wszystkich użytkowników
+		zalogował się użytkownik
+			klient: odświeża statusy użytkowników i sortuje listę konwersacji ponownie
+		wylogował się użytkownik
+			klient: odświeża statusy użytkowników i sortuje listę konwersacji ponownie
+		użytkownik dostał wiadomość
+			klient: odświeża konwersację jeżeli aktywna, jeżeli nie aktualizuje liczbę nieprzeczytanych wiadomości
+		użytkownik odczytał wiadomość
+			klient: odświeża status wiadomości
+	biblioteka 
+		websockets
+		socket-io
+
+
+

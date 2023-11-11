@@ -1,0 +1,8 @@
+
+
+DEBUG = True
+HOST_ADRESS = "127.0.0.1"
+HOST_PORT = 5000
+DB_URL = "sqlite:///msgServer.db"
+USER_ID_LENGTH = 32
+USER_PASSWORD_LENGTH = 32

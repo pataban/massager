@@ -1,339 +1,344 @@
-import flask
-from flask import request, jsonify
-import sqlalchemy as db
-import pandas as pd
-import datetime
-import asyncio
-import websockets
 import socket
-import time
 import threading
-import json
+import sqlalchemy as sqla
 
 from ServerConnection import ServerConnection
-
-host,port ="127.0.0.1", 5000
-engine = db.create_engine('sqlite:///msgServer.db')
-connection = engine.connect()
-metadata = db.MetaData()
-
-users = db.Table('users', metadata,
-              db.Column('id', db.String(255),nullable=False),
-              db.Column('password', db.String(255), nullable=False),
-              db.Column('active', db.Boolean(), default=False)
-              )
-
-messages = db.Table('messages', metadata,
-              db.Column('srcId', db.String(255),nullable=False),
-              db.Column('dstId', db.String(255), nullable=False),
-              db.Column('msg', db.String(255), nullable=False),
-              db.Column('send', db.Boolean(), default=False),
-              db.Column('red', db.Boolean(), default=False),
-              db.Column('time', db.String(255), nullable=False)
-              )
-
-metadata.create_all(engine)
-
-query=db.select([users]).where(users.columns.id == "qwe")
-resultProxy = connection.execute(query)
-resultSet = resultProxy.fetchall()
-if (len(resultSet)==0):
-    query = db.insert(users).values(id="qwe", password="rty")
-    resultProxy = connection.execute(query)
-
-query=db.select([users]).where(users.columns.id == "asd")
-resultProxy = connection.execute(query)
-resultSet = resultProxy.fetchall()
-if (len(resultSet)==0):
-    query = db.insert(users).values(id="asd", password="fgh")
-    resultProxy = connection.execute(query)
-
-query=db.update(users).values(active = False)
-resultProxy = connection.execute(query)
-
-"""query=db.select([messages])
-resultProxy = connection.execute(query)
-resultSet = resultProxy.fetchall()
-print(resultSet)"""
+from constants import *
 
 
+activeUsers = {}
+dbMetadata = sqla.MetaData()
+usersTable = sqla.Table(
+    "users", dbMetadata,
+    sqla.Column("id", sqla.String(USER_ID_LENGTH), nullable=False),
+    sqla.Column("password", sqla.String(USER_PASSWORD_LENGTH), nullable=False),
+)
+messagesTable = sqla.Table(
+    "messages", dbMetadata,
+    sqla.Column("srcId", sqla.String(USER_ID_LENGTH), nullable=False),
+    sqla.Column("dstId", sqla.String(USER_ID_LENGTH), nullable=False),
+    sqla.Column("msg", sqla.String(255), nullable=False),
+    sqla.Column("read", sqla.Boolean(), default=False),
+    sqla.Column("time", sqla.String(255), nullable=False)
+)  # TODO sqla.DateTime()
+dbEngine = sqla.create_engine(DB_URL)
+dbMetadata.create_all(dbEngine)
 
-def verifyUser(id,password):
-    if((id=="") or (password=="")):
-        return False
 
-    connection = engine.connect()
-    query=db.select([users]).where(users.columns.id == id)
+def setupTestUser(uId, password):
+    connection = dbEngine.connect()
+    query = sqla.select([usersTable]).where(usersTable.columns.id == uId)
     resultProxy = connection.execute(query)
     resultSet = resultProxy.fetchall()
-    
-    if (len(resultSet)==0):
+    if len(resultSet) == 0:
+        query = sqla.insert(usersTable).values(id=uId, password=password)
+        resultProxy = connection.execute(query)
+
+
+def printAllMessages():
+    connection = dbEngine.connect()
+    query = sqla.select([messagesTable])
+    resultProxy = connection.execute(query)
+    resultSet = resultProxy.fetchall()
+    print(resultSet)
+
+
+def verifyUser(uId, password):
+    if ((uId == "") or (password == "")):
         return False
-    
-    if(str((resultSet[0]["id"])==str(id)) and (str(resultSet[0]["password"])==str(password))):
+
+    connection = dbEngine.connect()
+    query = sqla.select([usersTable]).where(usersTable.columns.id == uId)
+    resultProxy = connection.execute(query)
+    resultSet = resultProxy.fetchall()
+
+    if len(resultSet) == 0:
+        return False
+
+    if (str((resultSet[0]["id"]) == str(uId)) and (str(resultSet[0]["password"]) == str(password))):
         return True
 
+    return False
 
-class Server():
 
-    def mainLoop(self):
-        threads=[]
-        tLock=threading.Lock()
-        server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        server.bind((host, port))
-        server.listen(5)
-        self.connections={}
-        while(True):
-            client, addr = server.accept()
-            threads.append(ServerConnection(self,client,tLock))
-            threads[-1].start()
+def apiRegisterUser(serverConn, payload):
+    if ((payload["userId"] == "") or (payload["password"] == "")):
+        payload = "Error: No id or password provided. Please specify an id and password."
+        payload = {"action": "register", "data": payload}
+        serverConn.send(payload)
+        return
 
-    def api_register_user(self,sc,data):
-        id=data["userId"]
-        password=data["password"]
-        if((id=="") or (password=="")):
-            data="Error: No id or password provided. Please specify an id and password."
-            data={"action":"register","data":data}
-            sc.send(data)
-            return
+    connection = dbEngine.connect()
+    query = sqla.select([usersTable]).where(
+        usersTable.columns.id == payload["userId"])
+    resultProxy = connection.execute(query)
+    resultSet = resultProxy.fetchall()
 
-        connection = engine.connect()
-        query=db.select([users]).where(users.columns.id == id)
+    if len(resultSet) > 0:
+        payload = "Id not available. Please select different ID"
+        payload = {"action": "register", "data": payload}
+        serverConn.send(payload)
+    else:
+        query = sqla.insert(usersTable).values(
+            id=payload["userId"], password=payload["password"])
         resultProxy = connection.execute(query)
-        resultSet = resultProxy.fetchall()
-        
-        if (len(resultSet)>0):
-            data="Id not available. Please select different ID"
-            data={"action":"register","data":data}
-            sc.send(data)
-        else:
-            query = db.insert(users).values(id=id, password=password, active=True)
-            resultProxy = connection.execute(query)
-            self.connections[data["userId"]]=sc
-            data="Registered successfully"
-            data={"action":"register","data":data}
-            sc.send(data)
-            self.connectionsGetUsers()
+        activeUsers[payload["userId"]] = serverConn
+        payload = "Registered successfully"
+        payload = {"action": "register", "data": payload}
+        serverConn.send(payload)
+        activeUsersForceUpdateUserList()
 
 
-    def api_login_user(self,sc,data):
-        id=data["userId"]
-        password=data["password"]
-        if((id=="") or (password=="")):
-            data="Error: No id or password provided. Please specify an id and password."
-            data={"action":"login","data":data}
-            sc.send(data)
-            return
+def apiLoginUser(serverConn, payload):
+    if ((payload["userId"] == "") or (payload["password"] == "")):
+        payload = "Error: No id or password provided. Please specify an id and password."
+        payload = {"action": "login", "data": payload}
+        serverConn.send(payload)
+        return
 
-        connection = engine.connect()
-        query=db.select([users]).where(users.columns.id == id)
+    connection = dbEngine.connect()
+    query = sqla.select([usersTable]).where(
+        usersTable.columns.id == payload["userId"])
+    resultProxy = connection.execute(query)
+    resultSet = resultProxy.fetchall()
+
+    if len(resultSet) == 0:
+        payload = "User does not exist"
+        payload = {"action": "login", "data": payload}
+        serverConn.send(payload)
+        return
+
+    if ((resultSet[0]["id"] != payload["userId"]) or
+            (resultSet[0]["password"] != payload["password"])):
+        payload = "wrong login or password"
+        payload = {"action": "login", "data": payload}
+        serverConn.send(payload)
+        return
+
+    activeUsers[payload["userId"]] = serverConn
+    payload = "Login successfull"
+    payload = {"action": "login", "data": payload}
+    serverConn.send(payload)
+    activeUsersForceUpdateUserList()
+
+
+def apiLogoutUser(serverConn, payload):
+    if not verifyUser(payload["userId"], payload["password"]):
+        payload = "User not recognised"
+        payload = {"action": "logout", "data": payload}
+        serverConn.send(payload)
+        return
+
+    activeUsers.pop(payload["userId"])
+    payload = "Logout successfull"
+    payload = {"action": "logout", "data": payload}
+    serverConn.send(payload)
+    activeUsersForceUpdateUserList()
+
+
+def apiGetUsers(serverConn, payload):
+    connection = dbEngine.connect()
+    query = sqla.select([usersTable])
+    resultProxy = connection.execute(query)
+    resultSet = resultProxy.fetchall()
+    res = []
+    for u in resultSet:
+        query = sqla.select([messagesTable])
+        query = query.where(sqla.and_(messagesTable.columns.read is False, sqla.and_(
+            messagesTable.columns.dstId == payload["userId"], messagesTable.columns.srcId == u[0])))
         resultProxy = connection.execute(query)
-        resultSet = resultProxy.fetchall()
-        
-        if (len(resultSet)==0):
-            data="User does not exist"
-            data={"action":"login","data":data}
-            sc.send(data)
-            return
-        
-        if((resultSet[0]["id"]!=id) or (resultSet[0]["password"]!=password)):
-            data="wrong login or password"
-            data={"action":"login","data":data}
-            sc.send(data)
-            return
-        
-        query=db.update(users).values(active = True).where(users.columns.id==id)
-        resultProxy = connection.execute(query)
-        self.connections[data["userId"]]=sc
-        #print(self.connections.keys())
-        data="Login successfull"
-        data={"action":"login","data":data}
-        sc.send(data)
-        self.connectionsGetUsers()
-
-    def api_logout_user(self,sc,data):
-        id=data["userId"]
-        if(not verifyUser(id,data["password"])):
-            data="User not recognised"
-            data={"action":"logout","data":data}
-            sc.send(data)
-            return
-
-        connection = engine.connect()
-        query=db.update(users).values(active = False).where(users.columns.id==id)
-        resultProxy = connection.execute(query)
-        self.connections.pop(data["userId"])
-        data="Logout successfull"
-        data={"action":"logout","data":data}
-        sc.send(data)
-        self.connectionsGetUsers()
+        count = len(resultProxy.fetchall())
+        res.append({"userId": u[0], "active": u[0]
+                    in activeUsers, "count": count})
+    payload = {"action": "getUsers", "data": res}
+    serverConn.send(payload)
 
 
-    def api_get_users(self,sc,data):
-        connection = engine.connect()
-        query=db.select([users])
-        resultProxy = connection.execute(query)
-        resultSet = resultProxy.fetchall()
-        res=[]
-        for u in resultSet:
-            query=db.select([messages])
-            query=query.where(db.and_(messages.columns.red == False
-                , db.and_(messages.columns.dstId == data["userId"],messages.columns.srcId == u[0])))
-            resultProxy = connection.execute(query)
-            count = len(resultProxy.fetchall())
-            res.append({"userId":u[0],"active":u[2],"count":count})
-        data={"action":"getUsers","data":res}
-        sc.send(data)
+def apiUnredCount(serverConn, payload):
+    connection = dbEngine.connect()
+    condition = sqla.and_(messagesTable.columns.dstId == payload["userId"],
+                          messagesTable.columns.srcId == payload["srcId"])
+    condition = sqla.and_(messagesTable.columns.read is False, condition)
+    query = sqla.select([messagesTable]).where(condition)
+    resultProxy = connection.execute(query)
+    resultSet = resultProxy.fetchall()
+    res = len(resultSet)
+    payload = {"action": "getUsers", "data": res}
+    serverConn.send(payload)
 
 
-    def api_unred_count(self,sc,data):
-        connection = engine.connect()
-        query=db.select([messages])
-        query=query.where(db.and_(messages.columns.red == False
-            , db.and_(messages.columns.dstId == data["userId"],messages.columns.srcId == data["srcId"])))
-        resultProxy = connection.execute(query)
-        resultSet = resultProxy.fetchall()
-        res=len(resultSet)
-        data={"action":"getUsers","data":res}
-        sc.send(data)
+def apiMessageHistory(serverConn, payload):
+    if not verifyUser(payload["userId"], payload["password"]):
+        payload = "User not valid"
+        payload = {"action": "messageHistory", "data": payload}
+        serverConn.send(payload)
+        return
+
+    connection = dbEngine.connect()
+    condition1 = sqla.and_(messagesTable.columns.read is True,
+                           messagesTable.columns.dstId == payload["userId"],
+                           messagesTable.columns.srcId == payload["chatId"])
+    condition2 = sqla.and_(messagesTable.columns.dstId == payload["chatId"],
+                           messagesTable.columns.srcId == payload["userId"])
+    condition = sqla.or_(condition1, condition2)
+    query = sqla.select([messagesTable]).where(condition)
+    resultProxy = connection.execute(query)
+    resultSet = resultProxy.fetchall()
+
+    res = []
+    for message in resultSet:
+        res.append({"srcId": message[0], "dstId": message[1],
+                    "msg": message[2], "read": message[3], "time": message[4]})
+    payload = {"action": "recieve", "data": res[-payload["count"]:]}
+    serverConn.send(payload)
 
 
-    def api_message_history(self,sc,data):
-        if(not verifyUser(data["userId"], data["password"])):
-            data="User not valid"
-            data={"action":"messageHistory","data":data}
-            sc.send(data)
-            return
+def apiRecieve(serverConn, payload):
+    if not verifyUser(payload["userId"], payload["password"]):
+        payload = "User not valid"
+        payload = {"action": "recieve", "data": payload}
+        serverConn.send(payload)
+        return
 
-        connection = engine.connect()
-        query=db.select([messages])
-        query=query.where(db.or_(db.and_(messages.columns.red == True
-            ,messages.columns.dstId == data["userId"],messages.columns.srcId == data["chatId"])
-            ,db.and_(messages.columns.dstId == data["chatId"],messages.columns.srcId == data["userId"])))
-        resultProxy = connection.execute(query)
-        resultSet = resultProxy.fetchall()
+    connection = dbEngine.connect()
+    condition = sqla.and_(messagesTable.columns.dstId == payload["userId"],
+                          messagesTable.columns.srcId == payload["srcId"])
+    condition = sqla.and_(messagesTable.columns.read is False, condition)
+    query = sqla.select([messagesTable]).where(condition)
+    resultProxy = connection.execute(query)
+    resultSet = resultProxy.fetchall()
 
-        print(resultSet)
-        res=[]
-        for msg in resultSet:
-            res.append({"srcId":msg[0],"dstId":msg[1],"msg":msg[2],"red":msg[4],"time":msg[5]})
-        data={"action":"recieve","data":res[-data["count"]:]}
-        sc.send(data)
-
-
-    def api_recieve(self,sc,data):
-        if(not verifyUser(data["userId"], data["password"])):
-            data="User not valid"
-            data={"action":"recieve","data":data}
-            sc.send(data)
-            return
-
-        connection = engine.connect()
-        query=db.select([messages])
-        query=query.where(db.and_(messages.columns.red == False
-            , db.and_(messages.columns.dstId == data["userId"],messages.columns.srcId == data["srcId"])))
-        resultProxy = connection.execute(query)
-        resultSet = resultProxy.fetchall()
-
-        """query=db.update(messages).values(send = True).where(db.and_(messages.columns.send == False
-            , messages.columns.dstId == data["userId"]))
-        resultProxy = connection.execute(query)"""
-
-        #print(resultSet)
-        res=[]
-        for msg in resultSet:
-            res.append({"srcId":msg[0],"dstId":msg[1],"msg":msg[2],"red":msg[4],"time":msg[5]})
-        data={"action":"recieve","data":res}
-        sc.send(data)
+    res = []
+    for message in resultSet:
+        res.append({"srcId": message[0], "dstId": message[1],
+                    "msg": message[2], "read": message[3], "time": message[4]})
+    payload = {"action": "recieve", "data": res}
+    serverConn.send(payload)
 
 
-    def api_mark_red(self,sc,data):
-        if(not verifyUser(data["userId"], data["password"])):
-            data="User not valid"
-            data={"action":"markRed","data":data}
-            sc.send(data)
-            return
+def apiMarkRead(serverConn, payload):
+    if not verifyUser(payload["userId"], payload["password"]):
+        payload = "User not valid"
+        payload = {"action": "markRed", "data": payload}
+        serverConn.send(payload)
+        return
 
-        connection = engine.connect()
-        query=db.select([messages])
+    connection = dbEngine.connect()
+    condition = sqla.and_(messagesTable.columns.dstId == payload["dstId"],
+                          messagesTable.columns.time == payload["time"])
+    condition = sqla.and_(messagesTable.columns.srcId == payload["srcId"],
+                          condition)
+    query = sqla.update(messagesTable).values(read=True).where(condition)
+    # TODO LMAO using time as message id
+    connection.execute(query)
 
-        query=db.update(messages).values(red = True).where(db.and_(messages.columns.srcId == data["srcId"]
-            , db.and_(messages.columns.dstId == data["dstId"],messages.columns.time == data["time"])))
-        resultProxy = connection.execute(query)
-
-        #print(resultSet)
-        data="marked as red"
-        data={"action":"markRed","data":data}
-        sc.send(data)
-        self.connectionsGetUsers()
-
-
-    def api_send(self,sc,data):
-        if(not verifyUser(data["userId"], data["password"])):
-            data="User not valid"
-            data={"action":"send","data":data}
-            sc.send(data)
-            return
-
-        connection = engine.connect()
-        query = db.insert(messages).values(srcId=data["userId"]
-            ,dstId=data["dstUserId"],msg=data["msg"],time=data["time"])
-        resultProxy = connection.execute(query)
-        
-        if data["dstUserId"] in self.connections:
-            data={"srcId":data["userId"],"dstId":data["dstUserId"],"msg":data["msg"],"red":False,"time":data["time"]}
-            data={"action":"recieve","data":[data]}
-            self.connections[data["data"][0]["dstId"]].send(data)
-
-        data="message send"
-        data={"action":"send","data":data}
-        sc.send(data)
-        self.connectionsGetUsers()
+    payload = "marked as red"
+    payload = {"action": "markRed", "data": payload}
+    serverConn.send(payload)
+    activeUsersForceUpdateUserList()
 
 
-    def api_send_everyone(self,sc,data):
-        if(not verifyUser(data["userId"], data["password"])):
-            data="User not valid"
-            data={"action":"sendEveryone","data":data}
-            sc.send(data)
-            return
+def apiSend(serverConn, payload):
+    if not verifyUser(payload["userId"], payload["password"]):
+        payload = "User not valid"
+        payload = {"action": "send", "data": payload}
+        serverConn.send(payload)
+        return
 
-        connection = engine.connect()
-        query=db.select([users])
-        resultProxy = connection.execute(query)
-        resultSet = resultProxy.fetchall()
-        msgList=[]
-        for u in resultSet:
-            if(u[0]!=data["userId"]):
-                msgList.append({"srcId":data["userId"],"dstId":u[0],"msg":data["msg"]})
-        query = db.insert(messages)
-        resultProxy = connection.execute(query,msgList)
-        data="messages send"
-        data={"action":"sendEveryone","data":data}
-        sc.send(data)
-        self.connectionsGetUsers()
+    connection = dbEngine.connect()
+    query = sqla.insert(messagesTable).values(srcId=payload["userId"],
+                                              dstId=payload["dstUserId"],
+                                              msg=payload["msg"],
+                                              time=payload["time"])
+    connection.execute(query)
 
+    if payload["dstUserId"] in activeUsers:
+        payload = {"srcId": payload["userId"], "dstId": payload["dstUserId"],
+                   "msg": payload["msg"], "read": False, "time": payload["time"]}
+        payload = {"action": "recieve", "data": [payload]}
+        activeUsers[payload["data"][0]["dstId"]].send(payload)
 
-    def connectionsGetUsers(self):
-        connection = engine.connect()
-        query=db.select([users])
-        resultProxy = connection.execute(query)
-        resultSet = resultProxy.fetchall()
-        for usrc in self.connections.keys():
-            res=[]
-            for u in resultSet:
-                query=db.select([messages])
-                query=query.where(db.and_(messages.columns.red == False
-                    , db.and_(messages.columns.dstId == usrc,messages.columns.srcId == u[0])))
-                resultProxy = connection.execute(query)
-                count = len(resultProxy.fetchall())
-                res.append({"userId":u[0],"active":u[2],"count":count})
-            data={"action":"getUsers","data":res}
-            self.connections[usrc].send(data)
+    payload = "message send"
+    payload = {"action": "send", "data": payload}
+    serverConn.send(payload)
+    activeUsersForceUpdateUserList()
 
 
-Server().mainLoop()
+def apiSendEveryone(serverConn, payload):
+    if not verifyUser(payload["userId"], payload["password"]):
+        payload = "User not valid"
+        payload = {"action": "sendEveryone", "data": payload}
+        serverConn.send(payload)
+        return
+
+    connection = dbEngine.connect()
+    query = sqla.select([usersTable])
+    resultProxy = connection.execute(query)
+    resultSet = resultProxy.fetchall()
+    messageList = []
+    for u in resultSet:
+        if u[0] != payload["userId"]:
+            messageList.append(
+                {"srcId": payload["userId"], "dstId": u[0], "msg": payload["msg"]})
+    query = sqla.insert(messagesTable)
+    connection.execute(query, messageList)
+    payload = "messages send"
+    payload = {"action": "sendEveryone", "data": payload}
+    serverConn.send(payload)
+    activeUsersForceUpdateUserList()
 
 
+def activeUsersForceUpdateUserList():
+    for uId, serverConn in activeUsers.items():
+        apiGetUsers(serverConn, {"userId": uId})
 
 
+class ServerApi():
+    def api_login_user(self, *args, **kwargs):
+        apiLoginUser(*args, **kwargs)
+
+    def api_logout_user(self, *args, **kwargs):
+        apiLogoutUser(*args, **kwargs)
+
+    def api_register_user(self, *args, **kwargs):
+        apiRegisterUser(*args, **kwargs)
+
+    def api_get_users(self, *args, **kwargs):
+        apiGetUsers(*args, **kwargs)
+
+    def api_unred_count(self, *args, **kwargs):
+        apiUnredCount(*args, **kwargs)
+
+    def api_message_history(self, *args, **kwargs):
+        apiMessageHistory(*args, **kwargs)
+
+    def api_recieve(self, *args, **kwargs):
+        apiRecieve(*args, **kwargs)
+
+    def api_mark_red(self, *args, **kwargs):
+        apiMarkRead(*args, **kwargs)
+
+    def api_send(self, *args, **kwargs):
+        apiSend(*args, **kwargs)
+
+    def api_send_everyone(self, *args, **kwargs):
+        apiSendEveryone(*args, **kwargs)
+
+
+if __name__ == "__main__":
+    if DEBUG:
+        setupTestUser("qwe", "rty")
+        setupTestUser("asd", "fgh")
+        setupTestUser("zxc", "vbn")
+
+    # printAllMessages()
+
+    threads = []
+    tLock = threading.Lock()
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((HOST_ADRESS, HOST_PORT))
+    server.listen(5)
+    while True:
+        client = server.accept()[0]
+        threads.append(ServerConnection(ServerApi(), client, tLock))
+        threads[-1].start()
