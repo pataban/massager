@@ -3,6 +3,7 @@ import threading
 import time
 import json
 import struct
+from utils import *
 
 host="127.0.0.1"
 port=5000
@@ -58,7 +59,7 @@ class ServerConnection(threading.Thread):
             if(data[j]=="}"): count-=1
             if(count==0):
                 print(data[i:j+1])
-                object=json.loads(data[i:j+1])
+                object=json.loads(data[i:j+1],object_hook=datetimeDeserializer)
                 #print(object)
                 action=object["action"]
                 object=object["data"]
@@ -88,7 +89,7 @@ class ServerConnection(threading.Thread):
 
 
     def send(self,data):
-        data=bytes(json.dumps(data),"utf-8")
+        data=bytes(json.dumps(data, default=datetimeSerializer),"utf-8")
         print("sending:",data)
         send_msg(self.client,data)
 

@@ -7,16 +7,14 @@ from ClientHandler import ClientHandler
 from constants import *
 
 
-def getTime():
-    return datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-
-
 class MsgPane(tk.Frame):
-    def __init__(self, master, msg, msgInfo, side="e"):
+    def __init__(self, master, msg, timestamp, read, side):
         super().__init__(master)
-        self.showInfo = False
         self.side = side
+        self.showInfo = False
 
+        msgInfo = timestamp.strftime(TIMESTAMP_FORMAT)
+        msgInfo += (CLIENT_MESSAGE_INFO_READ if read else CLIENT_MESSAGE_INFO_UNREAD)
         msgInfoFont = font.Font(size=7)
         self.msgInfo = tk.Label(self, text=msgInfo, font=msgInfoFont)
 
@@ -219,13 +217,8 @@ class Gui(tk.Frame):
     def recieveMessage(self, result):
         for message in result:
             if self.selectedChatId in (message["srcId"], message["dstId"]):
-                side = "w"
-                if message["srcId"] == self.userId:
-                    side = "e"
-                msgInfo = message["time"]
-                msgInfo += (", read" if message["read"] or
-                            message["srcId"] == self.userId else ", unread")
-                self.addMsg(message["msg"], msgInfo, side)
+                self.addMsg(message["msg"], message["time"], message["read"],
+                            side="e" if message["srcId"] == self.userId else "w")
                 # oznacza wszystko jako odczytane przy zmianie chatu
                 # TODO all-chat-broken (what if dstId is "")
                 if ((not message["read"]) and (message["dstId"] == self.userId)):
@@ -238,8 +231,9 @@ class Gui(tk.Frame):
             self.recieveMessagesAppendGetNew = False
             self.sendGetNewMessages()
 
-    def addMsg(self, msg, msgInfo, side):
-        msgPane = MsgPane(self.msgFrame, msg=msg, msgInfo=msgInfo, side=side)
+    def addMsg(self, msg, timestamp, read, side):
+        msgPane = MsgPane(self.msgFrame, msg=msg,
+                          timestamp=timestamp, read=read, side=side)
         msgPane.grid(row=len(self.msgPanes), column=0, sticky=side)
         self.msgPanes.append(msgPane)
         if len(self.msgPanes) > DEFAULT_CHAT_HISTORY_SIZE:
@@ -249,16 +243,16 @@ class Gui(tk.Frame):
     def sendMessage(self, _=None):
         if self.selectedChatId == "":
             payload = {"userId": self.userId, "password": self.userPassword,
-                       "msg": self.msgEntry.get(), "time": getTime()}
+                       "msg": self.msgEntry.get(), "time": datetime.now()}
             payload = {"action": "sendEveryone", "data": payload}
         else:
             payload = {"userId": self.userId, "password": self.userPassword,
                        "dstUserId": self.selectedChatId, "msg": self.msgEntry.get(),
-                       "time": getTime()}
+                       "time": datetime.now()}
             payload = {"action": "send", "data": payload}
         self.clientHandler.send(payload)
-        msgInfo = payload["data"]["time"]+", unread"
-        self.addMsg(payload["data"]["msg"], msgInfo, "e")
+        self.addMsg(payload["data"]["msg"],
+                    payload["data"]["time"], False, "e")
         self.msgEntry.delete(0, tk.END)
 
 

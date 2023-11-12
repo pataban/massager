@@ -19,8 +19,8 @@ messagesTable = sqla.Table(
     sqla.Column("dstId", sqla.String(USER_ID_LENGTH), nullable=False),
     sqla.Column("msg", sqla.String(255), nullable=False),
     sqla.Column("read", sqla.Boolean(), default=False),
-    sqla.Column("time", sqla.String(255), nullable=False)
-)  # TODO sqla.DateTime()
+    sqla.Column("time", sqla.DateTime(), nullable=False)
+)
 dbEngine = sqla.create_engine(DB_URL)
 dbMetadata.create_all(dbEngine)
 
