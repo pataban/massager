@@ -40,6 +40,7 @@ class Gui(tk.Frame):
         self.userPassword = ""
         self.userList = []
         self.selectedChatId = ""
+        self.recieveMessagesAppendGetNew = False
 
         self.loginFrame = None
         self.userIdEntry = None
@@ -95,7 +96,6 @@ class Gui(tk.Frame):
             self.loginFrame.pack_forget()
         if self.userMainFrame is None:
             self.userMainFrame = tk.Frame(self)
-            self.userMainFrame.pack()
 
             userMenuFrame = tk.Frame(self.userMainFrame)
             userMenuFrame.pack(side="top", fill="y")
@@ -111,6 +111,7 @@ class Gui(tk.Frame):
 
             self.userListbox.bind("<<ListboxSelect>>",
                                   lambda _: self.chatSelected())
+        self.userMainFrame.pack()
         self.userIdLabel["text"] = "User Id: "+self.userId
         if self.chatFrame is not None:
             self.chatFrame.pack_forget()
@@ -141,8 +142,8 @@ class Gui(tk.Frame):
         for mp in self.msgPanes:
             mp.grid_forget()
         self.msgPanes = []
+        self.recieveMessagesAppendGetNew = True
         self.sendGetMessageHistory()
-        self.sendGetNewMessages()  # TODO what if return in opposite order
 
     def chatSelected(self):
         selection = self.userListbox.curselection()
@@ -158,7 +159,6 @@ class Gui(tk.Frame):
             self.loginResultLabel["text"] = MISSING_LOGIN_DATA_LABEL
             self.update()
             return
-        print("b")
         self.userId = self.userIdEntry.get()
         self.userPassword = self.userPasswordEntry.get()
         payload = {"userId": self.userIdEntry.get(
@@ -172,7 +172,7 @@ class Gui(tk.Frame):
             self.userPasswordEntry.delete(0, tk.END)
             self.loginResultLabel["text"] = ""
             return self.createUserMainLayout()
-        self.loginResultLabel["text"] = result["data"]
+        self.loginResultLabel["text"] = result
         self.update()
 
     def sendUpdateUserList(self):
@@ -234,6 +234,9 @@ class Gui(tk.Frame):
                                "time": message["time"]}
                     payload = {"action": "markRed", "data": payload}
                     self.clientHandler.send(payload)
+        if self.recieveMessagesAppendGetNew:
+            self.recieveMessagesAppendGetNew = False
+            self.sendGetNewMessages()
 
     def addMsg(self, msg, msgInfo, side):
         msgPane = MsgPane(self.msgFrame, msg=msg, msgInfo=msgInfo, side=side)

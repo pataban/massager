@@ -144,7 +144,7 @@ def apiGetUsers(serverConn, payload):
     res = []
     for u in resultSet:
         query = sqla.select([messagesTable])
-        query = query.where(sqla.and_(messagesTable.columns.read is False, sqla.and_(
+        query = query.where(sqla.and_(messagesTable.columns.read == False, sqla.and_(
             messagesTable.columns.dstId == payload["userId"], messagesTable.columns.srcId == u[0])))
         resultProxy = connection.execute(query)
         count = len(resultProxy.fetchall())
@@ -158,7 +158,7 @@ def apiUnredCount(serverConn, payload):
     connection = dbEngine.connect()
     condition = sqla.and_(messagesTable.columns.dstId == payload["userId"],
                           messagesTable.columns.srcId == payload["srcId"])
-    condition = sqla.and_(messagesTable.columns.read is False, condition)
+    condition = sqla.and_(messagesTable.columns.read == False, condition)
     query = sqla.select([messagesTable]).where(condition)
     resultProxy = connection.execute(query)
     resultSet = resultProxy.fetchall()
@@ -175,7 +175,7 @@ def apiMessageHistory(serverConn, payload):
         return
 
     connection = dbEngine.connect()
-    condition1 = sqla.and_(messagesTable.columns.read is True,
+    condition1 = sqla.and_(messagesTable.columns.read == True,
                            messagesTable.columns.dstId == payload["userId"],
                            messagesTable.columns.srcId == payload["chatId"])
     condition2 = sqla.and_(messagesTable.columns.dstId == payload["chatId"],
@@ -193,7 +193,7 @@ def apiMessageHistory(serverConn, payload):
     serverConn.send(payload)
 
 
-def apiRecieve(serverConn, payload):
+def apiRecieveMessages(serverConn, payload):
     if not verifyUser(payload["userId"], payload["password"]):
         payload = "User not valid"
         payload = {"action": "recieve", "data": payload}
@@ -201,9 +201,9 @@ def apiRecieve(serverConn, payload):
         return
 
     connection = dbEngine.connect()
-    condition = sqla.and_(messagesTable.columns.dstId == payload["userId"],
+    condition = sqla.and_(messagesTable.columns.read == False,
+                          messagesTable.columns.dstId == payload["userId"],
                           messagesTable.columns.srcId == payload["srcId"])
-    condition = sqla.and_(messagesTable.columns.read is False, condition)
     query = sqla.select([messagesTable]).where(condition)
     resultProxy = connection.execute(query)
     resultSet = resultProxy.fetchall()
@@ -313,7 +313,7 @@ class ServerApi():
         apiMessageHistory(*args, **kwargs)
 
     def api_recieve(self, *args, **kwargs):
-        apiRecieve(*args, **kwargs)
+        apiRecieveMessages(*args, **kwargs)
 
     def api_mark_red(self, *args, **kwargs):
         apiMarkRead(*args, **kwargs)
@@ -335,10 +335,10 @@ if __name__ == "__main__":
 
     threads = []
     tLock = threading.Lock()
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((HOST_ADRESS, HOST_PORT))
-    server.listen(5)
+    socketServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    socketServer.bind((HOST_ADRESS, HOST_PORT))
+    socketServer.listen(5)
     while True:
-        client = server.accept()[0]
+        client = socketServer.accept()[0]
         threads.append(ServerConnection(ServerApi(), client, tLock))
         threads[-1].start()
