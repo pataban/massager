@@ -11,7 +11,10 @@ port=5000
 def send_msg(sock, msg):
         # Prefix each message with a 4-byte length (network byte order)
         msg = struct.pack('>I', len(msg)) + msg
-        sock.sendall(msg)
+        try:
+            sock.sendall(msg)
+        except (ConnectionAbortedError, ConnectionResetError):
+            pass
 
 def recv_msg(sock):
     # Read message length and unpack it into an integer
@@ -37,11 +40,16 @@ class ServerConnection(threading.Thread):
         threading.Thread.__init__(self)
         self.server=server
         self.client=client
+        self.daemon=True
         self.tLock=tLock
+        self.active=True
         
     def run(self):
-        while True:
-            msg = recv_msg(self.client)
+        while self.active:
+            try:
+                msg = recv_msg(self.client)
+            except (ConnectionAbortedError, ConnectionResetError):
+                continue
             msg=msg.decode()
             print("recieved:",msg)
             self.tLock.acquire()
@@ -49,7 +57,9 @@ class ServerConnection(threading.Thread):
             self.msgHandler(msg)
             
             self.tLock.release()
-        self.client.close()
+        self.tLock.acquire()
+        self.server.unregister(self)
+        self.tLock.release()
 
     def msgHandler(self,data):
         count=0
@@ -93,4 +103,9 @@ class ServerConnection(threading.Thread):
         print("sending:",data)
         send_msg(self.client,data)
 
-    
+    def kill(self):
+        lock=threading.Lock()
+        lock.acquire()
+        self.active=False
+        self.client.close()
+        lock.release()

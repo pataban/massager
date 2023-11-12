@@ -12,7 +12,10 @@ port=5000
 def send_msg(sock, msg):
         # Prefix each message with a 4-byte length (network byte order)
         msg = struct.pack('>I', len(msg)) + msg
-        sock.sendall(msg)
+        try:
+            sock.sendall(msg)
+        except (ConnectionAbortedError, ConnectionResetError):
+            pass
 
 def recv_msg(sock):
     # Read message length and unpack it into an integer
@@ -38,13 +41,17 @@ class ClientHandler(threading.Thread):
         threading.Thread.__init__(self)
         self.gui=gui
         self.tLock=tLock
+        #self.daemon=True
         self.sc = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.sc.connect((host,port))
         self.active=True
 
     def run(self):
         while self.active:
-            msg = recv_msg(self.sc)
+            try:
+                msg = recv_msg(self.sc)
+            except (ConnectionAbortedError, ConnectionResetError):
+                continue
             msg=msg.decode()
             print("recieved:",msg)
             self.tLock.acquire()
@@ -52,7 +59,6 @@ class ClientHandler(threading.Thread):
             self.msgHandler(msg)
 
             self.tLock.release()
-        self.sc.close()
 
     def msgHandler(self,data):
         count=0
@@ -69,7 +75,7 @@ class ClientHandler(threading.Thread):
                 if(action=="login"):
                     self.gui.recieveRegisterLoginUser(object)
                 if(action=="logout"):
-                    self.gui.recievelogoutUser(object)
+                    self.gui.recieveLogoutUser(object)
                 if(action=="register"):
                     self.gui.recieveRegisterLoginUser(object)
                 if(action=="getUsers"):
@@ -93,4 +99,5 @@ class ClientHandler(threading.Thread):
         lock=threading.Lock()
         lock.acquire()
         self.active=False
+        self.sc.close()
         lock.release()

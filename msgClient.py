@@ -33,7 +33,9 @@ class MsgPane(tk.Frame):
 class Gui(tk.Frame):
     def __init__(self, master=tk.Tk()):
         super().__init__(master)
-        master.title(CLIENT_WINDOW_TITLE)
+        self.master = master
+        self.master.title(CLIENT_WINDOW_TITLE)
+        self.master.protocol("WM_DELETE_WINDOW", self.onClose)
         self.userId = ""
         self.userPassword = ""
         self.userList = []
@@ -58,8 +60,7 @@ class Gui(tk.Frame):
         self.pack()
 
         self.tLock = threading.Lock()
-        self.clientHandler = ClientHandler(self, self.tLock)
-        self.clientHandler.start()
+        self.clientHandler = None
 
     def createLoginLayout(self):
         if self.userMainFrame is not None:
@@ -151,6 +152,9 @@ class Gui(tk.Frame):
         self.createChatLayout()
 
     def sendRegisterLoginUser(self, actionType):
+        if self.clientHandler is None:
+            self.clientHandler = ClientHandler(self, self.tLock)
+            self.clientHandler.start()
         if actionType not in ("register", "login"):
             return
         if ((self.userIdEntry.get() == "") or (self.userPasswordEntry.get() == "")):
@@ -198,9 +202,13 @@ class Gui(tk.Frame):
         payload = {"action": "logout", "data": payload}
         self.clientHandler.send(payload)
 
-    def recievelogoutUser(self, result):
+    def recieveLogoutUser(self, result):
         if result == LOGOUT_OK:
-            return self.createLoginLayout()
+            self.userId = ""
+            self.userPassword = ""
+            self.clientHandler.kill()
+            self.clientHandler = None
+            self.createLoginLayout()
 
     def sendGetMessageHistory(self):
         payload = {"userId": self.userId, "password": self.userPassword,
@@ -255,8 +263,14 @@ class Gui(tk.Frame):
                     payload["data"]["time"], False, "e")
         self.msgEntry.delete(0, tk.END)
 
+    def onClose(self):
+        if self.clientHandler is not None:
+            if self.userId != "":
+                self.sendLogoutUser()
+            self.clientHandler.kill()
+        self.master.destroy()
+
 
 if __name__ == "__main__":
     gui = Gui()
     gui.mainloop()
-    gui.clientHandler.kill()

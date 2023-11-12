@@ -7,6 +7,7 @@ from constants import *
 
 
 activeUsers = {}
+serverConnections = []
 dbMetadata = sqla.MetaData()
 usersTable = sqla.Table(
     "users", dbMetadata,
@@ -133,6 +134,7 @@ def apiLogoutUser(serverConn, payload):
     payload = LOGOUT_OK
     payload = {"action": "logout", "data": payload}
     serverConn.send(payload)
+    serverConn.kill()
     activeUsersForceUpdateUserList()
 
 
@@ -293,6 +295,10 @@ def activeUsersForceUpdateUserList():
         apiGetUsers(serverConn, {"userId": uId})
 
 
+def unregister(serverConnection):
+    serverConnections.remove(serverConnection)
+
+
 class ServerApi():
     def api_login_user(self, *args, **kwargs):
         apiLoginUser(*args, **kwargs)
@@ -324,6 +330,9 @@ class ServerApi():
     def api_send_everyone(self, *args, **kwargs):
         apiSendEveryone(*args, **kwargs)
 
+    def unregister(self, *args, **kwargs):
+        unregister(*args, **kwargs)
+
 
 if __name__ == "__main__":
     if DEBUG:
@@ -333,12 +342,12 @@ if __name__ == "__main__":
 
     # printAllMessages()
 
-    threads = []
     tLock = threading.Lock()
     socketServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     socketServer.bind((HOST_ADRESS, HOST_PORT))
     socketServer.listen(5)
     while True:
-        client = socketServer.accept()[0]
-        threads.append(ServerConnection(ServerApi(), client, tLock))
-        threads[-1].start()
+        clientSocket = socketServer.accept()[0]
+        serverConnections.append(ServerConnection(
+            ServerApi(), clientSocket, tLock))
+        serverConnections[-1].start()
