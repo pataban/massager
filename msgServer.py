@@ -2,12 +2,12 @@ import socket
 import threading
 import sqlalchemy as sqla
 
-from ServerConnection import ServerConnection
+from connectionHandler import ConnectionHandler
 from constants import *
 
 
 activeUsers = {}
-serverConnections = []
+clientConnections = []
 dbMetadata = sqla.MetaData()
 usersTable = sqla.Table(
     "users", dbMetadata,
@@ -295,43 +295,8 @@ def activeUsersForceUpdateUserList():
         apiGetUsers(serverConn, {"userId": uId})
 
 
-def unregister(serverConnection):
-    serverConnections.remove(serverConnection)
-
-
-class ServerApi():
-    def api_login_user(self, *args, **kwargs):
-        apiLoginUser(*args, **kwargs)
-
-    def api_logout_user(self, *args, **kwargs):
-        apiLogoutUser(*args, **kwargs)
-
-    def api_register_user(self, *args, **kwargs):
-        apiRegisterUser(*args, **kwargs)
-
-    def api_get_users(self, *args, **kwargs):
-        apiGetUsers(*args, **kwargs)
-
-    def api_unred_count(self, *args, **kwargs):
-        apiUnredCount(*args, **kwargs)
-
-    def api_message_history(self, *args, **kwargs):
-        apiMessageHistory(*args, **kwargs)
-
-    def api_recieve(self, *args, **kwargs):
-        apiRecieveMessages(*args, **kwargs)
-
-    def api_mark_red(self, *args, **kwargs):
-        apiMarkRead(*args, **kwargs)
-
-    def api_send(self, *args, **kwargs):
-        apiSend(*args, **kwargs)
-
-    def api_send_everyone(self, *args, **kwargs):
-        apiSendEveryone(*args, **kwargs)
-
-    def unregister(self, *args, **kwargs):
-        unregister(*args, **kwargs)
+def unregister(clientConnection):
+    clientConnections.remove(clientConnection)
 
 
 if __name__ == "__main__":
@@ -342,12 +307,31 @@ if __name__ == "__main__":
 
     # printAllMessages()
 
-    tLock = threading.Lock()
+    threadLock = threading.Lock()
+    maping = {
+        "login": apiLoginUser,
+        "logout": apiLogoutUser,
+        "register": apiRegisterUser,
+        "getUsers": apiGetUsers,
+        "unredCount": apiUnredCount,
+        "messageHistory": apiMessageHistory,
+        "recieve": apiRecieveMessages,
+        "markRed": apiMarkRead,
+        "send": apiSend,
+        "sendEveryone": apiSendEveryone,
+        "onClose": lambda clientConnection: (
+            threadLock.acquire(),
+            unregister(clientConnection),
+            threadLock.release()
+        )
+    }
+
     socketServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     socketServer.bind((HOST_ADRESS, HOST_PORT))
     socketServer.listen(5)
+
     while True:
         clientSocket = socketServer.accept()[0]
-        serverConnections.append(ServerConnection(
-            ServerApi(), clientSocket, tLock))
-        serverConnections[-1].start()
+        clientConnections.append(ConnectionHandler(
+            clientSocket, maping, threadLock))
+        clientConnections[-1].start()

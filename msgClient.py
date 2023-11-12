@@ -1,9 +1,10 @@
+import socket
 import threading
 import tkinter as tk
 import tkinter.font as font
 from datetime import datetime
 
-from ClientHandler import ClientHandler
+from connectionHandler import ConnectionHandler
 from constants import *
 
 
@@ -59,8 +60,8 @@ class Gui(tk.Frame):
         self.createLoginLayout()
         self.pack()
 
-        self.tLock = threading.Lock()
-        self.clientHandler = None
+        self.threadLock = threading.Lock()
+        self.connectionHandler = None
 
     def createLoginLayout(self):
         if self.userMainFrame is not None:
@@ -152,9 +153,19 @@ class Gui(tk.Frame):
         self.createChatLayout()
 
     def sendRegisterLoginUser(self, actionType):
-        if self.clientHandler is None:
-            self.clientHandler = ClientHandler(self, self.tLock)
-            self.clientHandler.start()
+        if self.connectionHandler is None:
+            maping = {
+                "login": lambda _, res: self.recieveRegisterLoginUser(res),
+                "logout": lambda _, res: self.recieveLogoutUser(res),
+                "register": lambda _, res: self.recieveRegisterLoginUser(res),
+                "getUsers": lambda _, res: self.recieveUpdateUserList(res),
+                "recieve": lambda _, res: self.recieveMessage(res),
+            }
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((HOST_ADRESS, HOST_PORT))
+            self.connectionHandler = ConnectionHandler(
+                sock,  maping, self.threadLock)
+            self.connectionHandler.start()
         if actionType not in ("register", "login"):
             return
         if ((self.userIdEntry.get() == "") or (self.userPasswordEntry.get() == "")):
@@ -166,7 +177,7 @@ class Gui(tk.Frame):
         payload = {"userId": self.userIdEntry.get(
         ), "password": self.userPasswordEntry.get()}
         payload = {"action": actionType, "data": payload}
-        self.clientHandler.send(payload)
+        self.connectionHandler.send(payload)
 
     def recieveRegisterLoginUser(self, result):
         if result == REGISTER_OK or result == LOGIN_OK:
@@ -180,7 +191,7 @@ class Gui(tk.Frame):
     def sendUpdateUserList(self):
         payload = {"userId": self.userId, "password": self.userPassword}
         payload = {"action": "getUsers", "data": payload}
-        self.clientHandler.send(payload)
+        self.connectionHandler.send(payload)
 
     def recieveUpdateUserList(self, result):
         self.userListbox.delete(0, tk.END)
@@ -200,27 +211,27 @@ class Gui(tk.Frame):
     def sendLogoutUser(self):
         payload = {"userId": self.userId, "password": self.userPassword}
         payload = {"action": "logout", "data": payload}
-        self.clientHandler.send(payload)
+        self.connectionHandler.send(payload)
 
     def recieveLogoutUser(self, result):
         if result == LOGOUT_OK:
             self.userId = ""
             self.userPassword = ""
-            self.clientHandler.kill()
-            self.clientHandler = None
+            self.connectionHandler.kill()
+            self.connectionHandler = None
             self.createLoginLayout()
 
     def sendGetMessageHistory(self):
         payload = {"userId": self.userId, "password": self.userPassword,
                    "chatId": self.selectedChatId, "count": DEFAULT_CHAT_HISTORY_SIZE}
         payload = {"action": "messageHistory", "data": payload}
-        self.clientHandler.send(payload)
+        self.connectionHandler.send(payload)
 
     def sendGetNewMessages(self):
         payload = {"userId": self.userId, "password": self.userPassword,
                    "srcId": self.selectedChatId}  # TODO here srcId and in history chatId why?
         payload = {"action": "recieve", "data": payload}
-        self.clientHandler.send(payload)
+        self.connectionHandler.send(payload)
 
     def recieveMessage(self, result):
         for message in result:
@@ -234,7 +245,7 @@ class Gui(tk.Frame):
                                "srcId": self.selectedChatId, "dstId": self.userId,
                                "time": message["time"]}
                     payload = {"action": "markRed", "data": payload}
-                    self.clientHandler.send(payload)
+                    self.connectionHandler.send(payload)
         if self.recieveMessagesAppendGetNew:
             self.recieveMessagesAppendGetNew = False
             self.sendGetNewMessages()
@@ -258,16 +269,16 @@ class Gui(tk.Frame):
                        "dstUserId": self.selectedChatId, "msg": self.msgEntry.get(),
                        "time": datetime.now()}
             payload = {"action": "send", "data": payload}
-        self.clientHandler.send(payload)
+        self.connectionHandler.send(payload)
         self.addMsg(payload["data"]["msg"],
                     payload["data"]["time"], False, "e")
         self.msgEntry.delete(0, tk.END)
 
     def onClose(self):
-        if self.clientHandler is not None:
+        if self.connectionHandler is not None:
             if self.userId != "":
                 self.sendLogoutUser()
-            self.clientHandler.kill()
+            self.connectionHandler.kill()
         self.master.destroy()
 
 
