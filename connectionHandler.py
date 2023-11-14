@@ -2,6 +2,7 @@ import json
 import threading
 
 from utils import *
+from constants import DEBUG
 
 
 class ConnectionHandler(threading.Thread):
@@ -17,7 +18,8 @@ class ConnectionHandler(threading.Thread):
     def run(self):
         while self.active:
             msg = self.recieveMsg()
-            print("recieved:", msg, "\n")
+            if DEBUG:
+                print("recieved:", msg, "\n")
 
             if msg is not None:
                 payload = json.loads(msg, object_hook=datetimeDeserializer)
@@ -51,7 +53,8 @@ class ConnectionHandler(threading.Thread):
         return data
 
     def send(self, payload):
-        print("sending:", payload, "\n")
+        if DEBUG:
+            print("sending:", payload, "\n")
         payload = json.dumps(
             payload, default=datetimeSerializer).encode("utf-8")
         # Prefix each message with a 4-byte length (network byte order)

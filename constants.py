@@ -1,18 +1,84 @@
 
 
+# general
 DEBUG = True
 HOST_ADRESS = "127.0.0.1"
 HOST_PORT = 5000
+TIMESTAMP_FORMAT = "%d.%m.%Y %H:%M:%S"
+
+# DB settings
 DB_URL = "sqlite:///msgServer.db"
 USER_ID_LENGTH = 32
 USER_PASSWORD_LENGTH = 32
-TIMESTAMP_FORMAT = "%d.%m.%Y %H:%M:%S"
-CLIENT_WINDOW_TITLE = "messager"
-CLIENT_USER_LIST_WIDTH = 30
-CLIENT_MESSAGE_INFO_READ = ", read"
-CLIENT_MESSAGE_INFO_UNREAD = ", unread"
-MISSING_LOGIN_DATA_LABEL = "No id or password provided!"
-REGISTER_OK = "Registered successfully"
-LOGIN_OK = "Login successfull"
-LOGOUT_OK = "Logout successfull"
-DEFAULT_CHAT_HISTORY_SIZE = 10  # TODO add scroling
+MSG_LENGTH = 255
+
+# DB artifacts
+TABLE_USERS = "users"
+TABLE_MESSAGES = "messages"
+COLUMN_USER_ID = "id"  # TODO rename to userId
+COLUMN_PASSWORD = "password"
+COLUMN_SRC_ID = "srcId"
+COLUMN_DST_ID = "dstId"
+COLUMN_MSG = "msg"
+COLUMN_READ = "read"
+COLUMN_TIMESTAMP = "timestamp"
+
+# actions
+ACTION_LOGIN = "login"
+ACTION_LOGOUT = "logout"
+ACTION_REGISTER = "register"
+ACTION_GET_USERS = "getUsers"
+ACTION_UNRED_COUNT = "unredCount"
+ACTION_MESSAGE_HISTORY = "messageHistory"
+ACTION_RECIEVE = "recieve"
+ACTION_MARK_READ = "markRead"
+ACTION_SEND = "send"
+ACTION_SEND_EVERYONE = "sendEveryone"
+
+# message keys
+KEY_ACTION = "action"
+KEY_DATA = "data"
+KEY_USER_ID = "userId"
+KEY_PASSOWRD = "password"
+KEY_SRC_ID = "srcId"
+KEY_CHAT_ID = "chatId"
+KEY_COUNT = "count"
+KEY_TIMESTAMP = "timestamp"
+KEY_MSG = "msg"
+KEY_READ = "read"
+KEY_ACTIVE = "active"
+
+
+# server responses
+RESPONSE_REGISTER_OK = "Registered successfully"
+RESPONSE_ERROR_MISSING_LOGIN_DATA = "No id or password provided. Please specify an id and password."
+RESPONSE_ERROR_ID_UNAVAILABLE = "Id not available. Please select different ID"
+RESPONSE_LOGIN_OK = "Login successfull"
+RESPONSE_ERROR_NO_USER = "User does not exist"
+RESPONSE_ERROR_WRONG_ID_PASSWORD = "Wrong login or password"
+RESPONSE_LOGOUT_OK = "Logout successfull"
+RESPONSE_ERROR_UNKNOWN_USER = "User not recognised"
+RESPONSE_MARK_READ_OK = "Marked as read"
+RESPONSE_SEND_OK = "Message send"
+RESPONSE_SEND_EVERYONE_OK = "Message send to everyone"
+
+# GUI layout
+GUI_WINDOW_TITLE = "Messager"
+GUI_LOGIN_ID_LABEL = "User Id:"
+GUI_LOGIN_PASSWORD_LABEL = "Password:"
+GUI_LOGIN_BUTTON = "Login"
+GUI_REGISTER_BUTTON = "Register"
+GUI_MISSING_LOGIN_DATA = "No id or password provided!"
+GUI_USER_LABEL = "User Id: "
+GUI_LOGOUT_BUTTON = "Logout"
+GUI_USER_LIST_WIDTH = 30
+GUI_CHAT_LABEL = "Chat with: "
+GUI_ALL_CHAT_LABEL = "Everyone"
+GUI_ACTIVE_LABEL = " \tactive"
+GUI_PASSIVE_LABEL = " \tpassive"
+GUI_NEW_MESSAGES_LABEL = "new"
+GUI_DEFAULT_MESSAGE_COUNT = 10  # TODO add scroling
+GUI_MESSAGE_INFO_READ = ", read"
+GUI_MESSAGE_INFO_UNREAD = ", unread"
+GUI_MESSAGE_COLOR = "grey"
+GUI_BUTTON_SEND = "Send"

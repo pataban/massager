@@ -1,7 +1,7 @@
 import socket
 import threading
 import tkinter as tk
-import tkinter.font as font
+from tkinter import font
 from datetime import datetime
 
 from connectionHandler import ConnectionHandler
@@ -15,12 +15,12 @@ class MsgPane(tk.Frame):
         self.showInfo = False
 
         msgInfo = timestamp.strftime(TIMESTAMP_FORMAT)
-        msgInfo += (CLIENT_MESSAGE_INFO_READ if read else CLIENT_MESSAGE_INFO_UNREAD)
+        msgInfo += (GUI_MESSAGE_INFO_READ if read else GUI_MESSAGE_INFO_UNREAD)
         msgInfoFont = font.Font(size=7)
         self.msgInfo = tk.Label(self, text=msgInfo, font=msgInfoFont)
 
         self.msg = tk.Button(
-            self, text=msg, background="grey", command=self.toggleInfo)
+            self, text=msg, background=GUI_MESSAGE_COLOR, command=self.toggleInfo)
         self.msg.grid(row=1, column=0, sticky="n"+self.side)
 
     def toggleInfo(self):
@@ -35,7 +35,7 @@ class Gui(tk.Frame):
     def __init__(self, master=tk.Tk()):
         super().__init__(master)
         self.master = master
-        self.master.title(CLIENT_WINDOW_TITLE)
+        self.master.title(GUI_WINDOW_TITLE)
         self.master.protocol("WM_DELETE_WINDOW", self.onClose)
         self.userId = ""
         self.userPassword = ""
@@ -69,22 +69,24 @@ class Gui(tk.Frame):
         if self.loginFrame is None:
             self.loginFrame = tk.Frame(self)
 
-            idLabel = tk.Label(self.loginFrame, text="User Id:")
+            idLabel = tk.Label(self.loginFrame, text=GUI_LOGIN_ID_LABEL)
             idLabel.grid(row=0, column=0)
             self.userIdEntry = tk.Entry(self.loginFrame)
             self.userIdEntry.grid(row=0, column=1)
 
-            passLabel = tk.Label(self.loginFrame, text="Password:")
+            passLabel = tk.Label(
+                self.loginFrame, text=GUI_LOGIN_PASSWORD_LABEL)
             passLabel.grid(row=1, column=0)
             self.userPasswordEntry = tk.Entry(self.loginFrame)
             self.userPasswordEntry.grid(row=1, column=1)
 
             loginButton = tk.Button(
-                self.loginFrame, text="login", command=lambda: self.sendRegisterLoginUser("login"))
+                self.loginFrame, text=GUI_LOGIN_BUTTON,
+                command=lambda: self.sendRegisterLoginUser(ACTION_LOGIN))
             loginButton.grid(row=2, column=0)
             registerButton = tk.Button(
-                self.loginFrame, text="register",
-                command=lambda: self.sendRegisterLoginUser("register"))
+                self.loginFrame, text=GUI_REGISTER_BUTTON,
+                command=lambda: self.sendRegisterLoginUser(ACTION_REGISTER))
             registerButton.grid(row=2, column=1)
 
             self.loginResultLabel = tk.Label(self.loginFrame, text="")
@@ -102,17 +104,17 @@ class Gui(tk.Frame):
             self.userIdLabel = tk.Label(userMenuFrame, text="")
             self.userIdLabel.grid(row=0, column=0)
             logoutButton = tk.Button(
-                userMenuFrame, text="Logout", command=self.sendLogoutUser)
+                userMenuFrame, text=GUI_LOGOUT_BUTTON, command=self.sendLogoutUser)
             logoutButton.grid(row=0, column=1)
 
             self.userListbox = tk.Listbox(
-                self.userMainFrame, width=CLIENT_USER_LIST_WIDTH, selectmode="single")
+                self.userMainFrame, width=GUI_USER_LIST_WIDTH, selectmode="single")
             self.userListbox.pack(side="left")
 
             self.userListbox.bind("<<ListboxSelect>>",
                                   lambda _: self.chatSelected())
         self.userMainFrame.pack()
-        self.userIdLabel["text"] = "User Id: "+self.userId
+        self.userIdLabel["text"] = GUI_USER_LABEL+self.userId
         if self.chatFrame is not None:
             self.chatFrame.pack_forget()
         self.sendUpdateUserList()
@@ -133,12 +135,12 @@ class Gui(tk.Frame):
             self.msgEntry.pack(side="left")
             self.msgEntry.bind("<Return>", self.sendMessage)
             msgEntryButton = tk.Button(
-                msgEntryFrame, text="Send", command=self.sendMessage)
+                msgEntryFrame, text=GUI_BUTTON_SEND, command=self.sendMessage)
             msgEntryButton.pack(side="right")
         self.chatFrame.pack(side="right")
-        self.chatInfoLabel["text"] = "Chat with: "+self.selectedChatId
-        if self.selectedChatId == '':
-            self.chatInfoLabel["text"] += "everyone"
+        self.chatInfoLabel["text"] = GUI_CHAT_LABEL+self.selectedChatId
+        if self.selectedChatId == "":
+            self.chatInfoLabel["text"] += GUI_ALL_CHAT_LABEL
         for mp in self.msgPanes:
             mp.grid_forget()
         self.msgPanes = []
@@ -155,32 +157,32 @@ class Gui(tk.Frame):
     def sendRegisterLoginUser(self, actionType):
         if self.connectionHandler is None:
             maping = {
-                "login": lambda _, res: self.recieveRegisterLoginUser(res),
-                "logout": lambda _, res: self.recieveLogoutUser(res),
-                "register": lambda _, res: self.recieveRegisterLoginUser(res),
-                "getUsers": lambda _, res: self.recieveUpdateUserList(res),
-                "recieve": lambda _, res: self.recieveMessage(res),
+                ACTION_LOGIN: lambda _, res: self.recieveRegisterLoginUser(res),
+                ACTION_LOGOUT: lambda _, res: self.recieveLogoutUser(res),
+                ACTION_REGISTER: lambda _, res: self.recieveRegisterLoginUser(res),
+                ACTION_GET_USERS: lambda _, res: self.recieveUpdateUserList(res),
+                ACTION_RECIEVE: lambda _, res: self.recieveMessage(res),
             }
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((HOST_ADRESS, HOST_PORT))
             self.connectionHandler = ConnectionHandler(
                 sock,  maping, self.threadLock)
             self.connectionHandler.start()
-        if actionType not in ("register", "login"):
+        if actionType not in (ACTION_REGISTER, ACTION_LOGIN):
             return
         if ((self.userIdEntry.get() == "") or (self.userPasswordEntry.get() == "")):
-            self.loginResultLabel["text"] = MISSING_LOGIN_DATA_LABEL
+            self.loginResultLabel["text"] = GUI_MISSING_LOGIN_DATA
             self.update()
             return
         self.userId = self.userIdEntry.get()
         self.userPassword = self.userPasswordEntry.get()
-        payload = {"userId": self.userIdEntry.get(
-        ), "password": self.userPasswordEntry.get()}
-        payload = {"action": actionType, "data": payload}
+        payload = {KEY_USER_ID: self.userIdEntry.get(
+        ), KEY_PASSOWRD: self.userPasswordEntry.get()}
+        payload = {KEY_ACTION: actionType, KEY_DATA: payload}
         self.connectionHandler.send(payload)
 
     def recieveRegisterLoginUser(self, result):
-        if result == REGISTER_OK or result == LOGIN_OK:
+        if result == RESPONSE_REGISTER_OK or result == RESPONSE_LOGIN_OK:
             self.userIdEntry.delete(0, tk.END)
             self.userPasswordEntry.delete(0, tk.END)
             self.loginResultLabel["text"] = ""
@@ -189,32 +191,32 @@ class Gui(tk.Frame):
         self.update()
 
     def sendUpdateUserList(self):
-        payload = {"userId": self.userId, "password": self.userPassword}
-        payload = {"action": "getUsers", "data": payload}
+        payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword}
+        payload = {KEY_ACTION: ACTION_GET_USERS, KEY_DATA: payload}
         self.connectionHandler.send(payload)
 
     def recieveUpdateUserList(self, result):
         self.userListbox.delete(0, tk.END)
         self.userList = []
-        self.userListbox.insert(1, "everyone ")  # TODO random space
+        self.userListbox.insert(1, GUI_ALL_CHAT_LABEL)  # TODO add count
         self.userList.append("")
         for user in result:
             self.userList.append(
-                (user["userId"], user["active"], user["count"]))
-            status = " \tactive" if user["active"] else " \tpassive"
+                (user[KEY_CHAT_ID], user[KEY_ACTIVE], user[KEY_COUNT]))
+            status = GUI_ACTIVE_LABEL if user[KEY_ACTIVE] else GUI_PASSIVE_LABEL
             unred = ""
-            if user["count"] > 0:
-                unred = f" \t({user['count']} new)"
-            self.userListbox.insert(tk.END, user["userId"]+status+unred)
+            if user[KEY_COUNT] > 0:
+                unred = f" \t({user[KEY_COUNT]} {GUI_NEW_MESSAGES_LABEL})"
+            self.userListbox.insert(tk.END, user[KEY_CHAT_ID]+status+unred)
         self.userListbox.update()
 
     def sendLogoutUser(self):
-        payload = {"userId": self.userId, "password": self.userPassword}
-        payload = {"action": "logout", "data": payload}
+        payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword}
+        payload = {KEY_ACTION: ACTION_LOGOUT, KEY_DATA: payload}
         self.connectionHandler.send(payload)
 
     def recieveLogoutUser(self, result):
-        if result == LOGOUT_OK:
+        if result == RESPONSE_LOGOUT_OK:
             self.userId = ""
             self.userPassword = ""
             self.connectionHandler.kill()
@@ -222,29 +224,31 @@ class Gui(tk.Frame):
             self.createLoginLayout()
 
     def sendGetMessageHistory(self):
-        payload = {"userId": self.userId, "password": self.userPassword,
-                   "chatId": self.selectedChatId, "count": DEFAULT_CHAT_HISTORY_SIZE}
-        payload = {"action": "messageHistory", "data": payload}
+        payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
+                   KEY_CHAT_ID: self.selectedChatId, KEY_COUNT: GUI_DEFAULT_MESSAGE_COUNT}
+        payload = {KEY_ACTION: ACTION_MESSAGE_HISTORY, KEY_DATA: payload}
         self.connectionHandler.send(payload)
 
     def sendGetNewMessages(self):
-        payload = {"userId": self.userId, "password": self.userPassword,
-                   "srcId": self.selectedChatId}  # TODO here srcId and in history chatId why?
-        payload = {"action": "recieve", "data": payload}
+        payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
+                   KEY_CHAT_ID: self.selectedChatId}
+        payload = {KEY_ACTION: ACTION_RECIEVE, KEY_DATA: payload}
         self.connectionHandler.send(payload)
 
     def recieveMessage(self, result):
         for message in result:
-            if self.selectedChatId in (message["srcId"], message["dstId"]):
-                self.addMsg(message["msg"], message["time"], message["read"],
-                            side="e" if message["srcId"] == self.userId else "w")
+            if self.selectedChatId in (message[KEY_SRC_ID], message[KEY_CHAT_ID]):
+                self.addMsg(message[KEY_MSG], message[KEY_TIMESTAMP], message[KEY_READ],
+                            side="e" if message[KEY_SRC_ID] == self.userId else "w")
                 # oznacza wszystko jako odczytane przy zmianie chatu
                 # TODO all-chat-broken (what if dstId is "")
-                if ((not message["read"]) and (message["dstId"] == self.userId)):
-                    payload = {"userId": self.userId, "password": self.userPassword,
-                               "srcId": self.selectedChatId, "dstId": self.userId,
-                               "time": message["time"]}
-                    payload = {"action": "markRed", "data": payload}
+                if ((not message[KEY_READ]) and
+                    (message[KEY_SRC_ID] != self.userId) and
+                        (message[KEY_CHAT_ID] == self.selectedChatId)):
+                    payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
+                               KEY_SRC_ID: message[KEY_SRC_ID], KEY_CHAT_ID: message[KEY_CHAT_ID],
+                               KEY_TIMESTAMP: message[KEY_TIMESTAMP]}
+                    payload = {KEY_ACTION: ACTION_MARK_READ, KEY_DATA: payload}
                     self.connectionHandler.send(payload)
         if self.recieveMessagesAppendGetNew:
             self.recieveMessagesAppendGetNew = False
@@ -255,23 +259,23 @@ class Gui(tk.Frame):
                           timestamp=timestamp, read=read, side=side)
         msgPane.grid(row=len(self.msgPanes), column=0, sticky=side)
         self.msgPanes.append(msgPane)
-        if len(self.msgPanes) > DEFAULT_CHAT_HISTORY_SIZE:
+        if len(self.msgPanes) > GUI_DEFAULT_MESSAGE_COUNT:
             self.msgPanes[0].grid_forget()
             self.msgPanes.pop(0)
 
     def sendMessage(self, _=None):
         if self.selectedChatId == "":
-            payload = {"userId": self.userId, "password": self.userPassword,
-                       "msg": self.msgEntry.get(), "time": datetime.now()}
-            payload = {"action": "sendEveryone", "data": payload}
+            payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
+                       KEY_MSG: self.msgEntry.get(), KEY_TIMESTAMP: datetime.now()}
+            payload = {KEY_ACTION: ACTION_SEND_EVERYONE, KEY_DATA: payload}
         else:
-            payload = {"userId": self.userId, "password": self.userPassword,
-                       "dstUserId": self.selectedChatId, "msg": self.msgEntry.get(),
-                       "time": datetime.now()}
-            payload = {"action": "send", "data": payload}
+            payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
+                       KEY_CHAT_ID: self.selectedChatId, KEY_MSG: self.msgEntry.get(),
+                       KEY_TIMESTAMP: datetime.now()}
+            payload = {KEY_ACTION: ACTION_SEND, KEY_DATA: payload}
         self.connectionHandler.send(payload)
-        self.addMsg(payload["data"]["msg"],
-                    payload["data"]["time"], False, "e")
+        self.addMsg(payload[KEY_DATA][KEY_MSG],
+                    payload[KEY_DATA][KEY_TIMESTAMP], False, "e")
         self.msgEntry.delete(0, tk.END)
 
     def onClose(self):

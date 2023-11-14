@@ -10,6 +10,6 @@ def datetimeSerializer(obj):
 
 def datetimeDeserializer(jsonDict):
     for k, v in jsonDict.items():
-        if k == "time":
+        if k == "timestamp":
             jsonDict[k] = datetime.strptime(v, TIMESTAMP_FORMAT)
     return jsonDict
