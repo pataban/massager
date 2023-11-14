@@ -179,12 +179,15 @@ def apiMessageHistory(serverConn, payload):
         return
 
     connection = dbEngine.connect()
-    condition1 = sqla.and_(messagesTable.columns.read == True,
-                           messagesTable.columns.dstId == payload[KEY_USER_ID],
-                           messagesTable.columns.srcId == payload[KEY_CHAT_ID])
-    condition2 = sqla.and_(messagesTable.columns.dstId == payload[KEY_CHAT_ID],
-                           messagesTable.columns.srcId == payload[KEY_USER_ID])
-    condition = sqla.or_(condition1, condition2)
+    if payload[KEY_CHAT_ID] == "":
+        condition = messagesTable.columns.dstId == ""
+    else:
+        condition1 = sqla.and_(messagesTable.columns.read == True,
+                               messagesTable.columns.dstId == payload[KEY_USER_ID],
+                               messagesTable.columns.srcId == payload[KEY_CHAT_ID])
+        condition2 = sqla.and_(messagesTable.columns.dstId == payload[KEY_CHAT_ID],
+                               messagesTable.columns.srcId == payload[KEY_USER_ID])
+        condition = sqla.or_(condition1, condition2)
     query = sqla.select([messagesTable]).where(condition)
     resultProxy = connection.execute(query)
     resultSet = resultProxy.fetchall()
@@ -206,7 +209,6 @@ def apiRecieveMessages(serverConn, payload):
 
     connection = dbEngine.connect()
     condition = sqla.and_(messagesTable.columns.read == False,
-                          # TODO fix for recieve from everyone (reversed)
                           messagesTable.columns.dstId == payload[KEY_USER_ID],
                           messagesTable.columns.srcId == payload[KEY_CHAT_ID])
     query = sqla.select([messagesTable]).where(condition)
@@ -231,7 +233,7 @@ def apiMarkRead(serverConn, payload):
     connection = dbEngine.connect()
     condition = sqla.and_(messagesTable.columns.dstId == payload[KEY_USER_ID],
                           messagesTable.columns.timestamp == payload[KEY_TIMESTAMP])
-    condition = sqla.and_(messagesTable.columns.srcId == payload[KEY_CHAT_ID],  # TODO what if all-chat
+    condition = sqla.and_(messagesTable.columns.srcId == payload[KEY_CHAT_ID],
                           condition)
     query = sqla.update(messagesTable).values(read=True).where(condition)
     # TODO LMAO using time as message id
@@ -257,7 +259,7 @@ def apiSend(serverConn, payload):
                                               timestamp=payload[KEY_TIMESTAMP])
     connection.execute(query)
 
-    targetUser = KEY_CHAT_ID
+    targetUser = payload[KEY_CHAT_ID]
     if targetUser in activeUsers:  # TODO replace with notify
         payload = {KEY_SRC_ID: payload[KEY_USER_ID],
                    KEY_CHAT_ID: payload[KEY_USER_ID],
@@ -273,7 +275,7 @@ def apiSend(serverConn, payload):
     activeUsersForceUpdateUserList()
 
 
-def apiSendEveryone(serverConn, payload):  # TODO unify with apiSend
+def apiSendEveryone(serverConn, payload):
     if not verifyUser(payload[KEY_USER_ID], payload[KEY_PASSOWRD]):
         payload = RESPONSE_ERROR_UNKNOWN_USER
         payload = {KEY_ACTION: ACTION_SEND_EVERYONE, KEY_DATA: payload}
@@ -284,15 +286,27 @@ def apiSendEveryone(serverConn, payload):  # TODO unify with apiSend
     query = sqla.insert(messagesTable).values(srcId=payload[KEY_USER_ID],
                                               dstId="",
                                               msg=payload[KEY_MSG],
+                                              read=True,
                                               timestamp=payload[KEY_TIMESTAMP])
     connection.execute(query)
+
+    payload = {KEY_SRC_ID: payload[KEY_USER_ID],  # TODO replace with notify
+               KEY_CHAT_ID: "",
+               KEY_MSG: payload[KEY_MSG],
+               KEY_READ: True,
+               KEY_TIMESTAMP: payload[KEY_TIMESTAMP]}
+    payload = {KEY_ACTION: ACTION_RECIEVE, KEY_DATA: [payload]}
+    for user in activeUsers.values():
+        if user != serverConn:
+            user.send(payload)
+
     payload = RESPONSE_SEND_EVERYONE_OK
     payload = {KEY_ACTION: ACTION_SEND_EVERYONE, KEY_DATA: payload}
     serverConn.send(payload)
-    activeUsersForceUpdateUserList()  # TODO notify for chat update if is open
+    activeUsersForceUpdateUserList()
 
 
-def activeUsersForceUpdateUserList():
+def activeUsersForceUpdateUserList():   # TODO replace with notify
     for uId, serverConn in activeUsers.items():
         apiGetUsers(serverConn, {KEY_USER_ID: uId})
 

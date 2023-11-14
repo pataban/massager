@@ -198,8 +198,8 @@ class Gui(tk.Frame):
     def recieveUpdateUserList(self, result):
         self.userListbox.delete(0, tk.END)
         self.userList = []
-        self.userListbox.insert(1, GUI_ALL_CHAT_LABEL)  # TODO add count
-        self.userList.append("")
+        self.userListbox.insert(1, GUI_ALL_CHAT_LABEL)
+        self.userList.append(("", True, float("inf")))
         for user in result:
             self.userList.append(
                 (user[KEY_CHAT_ID], user[KEY_ACTIVE], user[KEY_COUNT]))
@@ -240,8 +240,7 @@ class Gui(tk.Frame):
             if self.selectedChatId in (message[KEY_SRC_ID], message[KEY_CHAT_ID]):
                 self.addMsg(message[KEY_MSG], message[KEY_TIMESTAMP], message[KEY_READ],
                             side="e" if message[KEY_SRC_ID] == self.userId else "w")
-                # oznacza wszystko jako odczytane przy zmianie chatu
-                # TODO all-chat-broken (what if dstId is "")
+
                 if ((not message[KEY_READ]) and
                     (message[KEY_SRC_ID] != self.userId) and
                         (message[KEY_CHAT_ID] == self.selectedChatId)):
