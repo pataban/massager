@@ -37,7 +37,10 @@ class ConnectionHandler(threading.Thread):
             return None
         msgLen = int.from_bytes(rawMsgLen, "big")
         # Read the message data
-        return self.recieveBytes(msgLen).decode(encoding="utf-8")
+        msg=self.recieveBytes(msgLen)
+        if msg is None:
+            return None
+        return msg.decode(encoding="utf-8")
 
     def recieveBytes(self, n):
         # Helper function to recieve n bytes or return None if EOF is hit

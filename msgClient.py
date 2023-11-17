@@ -16,7 +16,7 @@ class MsgPane(tk.Frame):
 
         msgInfo = timestamp.strftime(TIMESTAMP_FORMAT)
         msgInfo += (GUI_MESSAGE_INFO_READ if read else GUI_MESSAGE_INFO_UNREAD)
-        msgInfoFont = font.Font(size=7)
+        msgInfoFont = font.Font(size=GUI_MESSAGE_INFO_SIZE)
         self.msgInfo = tk.Label(self, text=msgInfo, font=msgInfoFont)
 
         self.msg = tk.Button(
