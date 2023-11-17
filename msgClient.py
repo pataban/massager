@@ -9,18 +9,19 @@ from constants import *
 
 
 class MsgPane(tk.Frame):
-    def __init__(self, master, msg, timestamp, read, side):
+    def __init__(self, master, message, side):
         super().__init__(master)
         self.side = side
         self.showInfo = False
 
-        msgInfo = timestamp.strftime(TIMESTAMP_FORMAT)
-        msgInfo += (GUI_MESSAGE_INFO_READ if read else GUI_MESSAGE_INFO_UNREAD)
+        msgInfo = message[KEY_TIMESTAMP].strftime(TIMESTAMP_FORMAT)
+        msgInfo += (GUI_MESSAGE_INFO_READ if message[KEY_READ]
+                    else GUI_MESSAGE_INFO_UNREAD)
         msgInfoFont = font.Font(size=GUI_MESSAGE_INFO_SIZE)
         self.msgInfo = tk.Label(self, text=msgInfo, font=msgInfoFont)
 
         self.msg = tk.Button(
-            self, text=msg, background=GUI_MESSAGE_COLOR, command=self.toggleInfo)
+            self, text=message[KEY_MSG], background=GUI_MESSAGE_COLOR, command=self.toggleInfo)
         self.msg.grid(row=1, column=0, sticky="n"+self.side)
 
     def toggleInfo(self):
@@ -238,13 +239,14 @@ class Gui(tk.Frame):
     def recieveMessage(self, result):
         for message in result:
             if self.selectedChatId in (message[KEY_SRC_ID], message[KEY_CHAT_ID]):
-                self.addMsg(message[KEY_MSG], message[KEY_TIMESTAMP], message[KEY_READ],
-                            side="e" if message[KEY_SRC_ID] == self.userId else "w")
+                self.addMsg(
+                    message, side="e" if message[KEY_SRC_ID] == self.userId else "w")
 
                 if ((not message[KEY_READ]) and
                     (message[KEY_SRC_ID] != self.userId) and
                         (message[KEY_CHAT_ID] == self.selectedChatId)):
                     payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
+                               KEY_MESSAGE_ID: message[KEY_MESSAGE_ID],
                                KEY_SRC_ID: message[KEY_SRC_ID], KEY_CHAT_ID: message[KEY_CHAT_ID],
                                KEY_TIMESTAMP: message[KEY_TIMESTAMP]}
                     payload = {KEY_ACTION: ACTION_MARK_READ, KEY_DATA: payload}
@@ -253,9 +255,8 @@ class Gui(tk.Frame):
             self.recieveMessagesAppendGetNew = False
             self.sendGetNewMessages()
 
-    def addMsg(self, msg, timestamp, read, side):
-        msgPane = MsgPane(self.msgFrame, msg=msg,
-                          timestamp=timestamp, read=read, side=side)
+    def addMsg(self, message, side):
+        msgPane = MsgPane(self.msgFrame, message=message, side=side)
         msgPane.grid(row=len(self.msgPanes), column=0, sticky=side)
         self.msgPanes.append(msgPane)
         if len(self.msgPanes) > GUI_DEFAULT_MESSAGE_COUNT:
@@ -273,8 +274,8 @@ class Gui(tk.Frame):
                        KEY_TIMESTAMP: datetime.now()}
             payload = {KEY_ACTION: ACTION_SEND, KEY_DATA: payload}
         self.connectionHandler.send(payload)
-        self.addMsg(payload[KEY_DATA][KEY_MSG],
-                    payload[KEY_DATA][KEY_TIMESTAMP], False, "e")
+        payload[KEY_DATA][KEY_READ] = False
+        self.addMsg(payload[KEY_DATA], side="e")
         self.msgEntry.delete(0, tk.END)
 
     def onClose(self):

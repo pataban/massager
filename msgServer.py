@@ -11,12 +11,15 @@ clientConnections = []
 dbMetadata = sqla.MetaData()
 usersTable = sqla.Table(
     TABLE_USERS, dbMetadata,
-    sqla.Column(COLUMN_USER_ID, sqla.String(USER_ID_LENGTH), nullable=False),
+    sqla.Column(COLUMN_USER_ID, sqla.String(USER_ID_LENGTH),
+                primary_key=True, nullable=False),
     sqla.Column(COLUMN_PASSWORD, sqla.String(
         USER_PASSWORD_LENGTH), nullable=False),
 )
 messagesTable = sqla.Table(
     TABLE_MESSAGES, dbMetadata,
+    sqla.Column(COLUMN_MESSAGE_ID, sqla.Integer(),
+                primary_key=True, nullable=False, autoincrement=True),
     sqla.Column(COLUMN_SRC_ID, sqla.String(USER_ID_LENGTH), nullable=False),
     sqla.Column(COLUMN_DST_ID, sqla.String(USER_ID_LENGTH), nullable=False),
     sqla.Column(COLUMN_MSG, sqla.String(MSG_LENGTH), nullable=False),
@@ -27,37 +30,38 @@ dbEngine = sqla.create_engine(DB_URL)
 dbMetadata.create_all(dbEngine)
 
 
-def setupTestUser(uId, password):
-    condition = usersTable.columns.id == uId
-    query = sqla.select([usersTable]).where(condition)
+def setupTestUser(userId, password):
+    condition = usersTable.columns.userId == userId
+    query = sqla.select(usersTable).where(condition)
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
         if len(rows) == 0:
-            query = sqla.insert(usersTable).values(id=uId, password=password)
+            query = sqla.insert(usersTable).values(
+                userId=userId, password=password)
             dbConn.execute(query)
 
 
 def printAllMessages():
-    query = sqla.select([messagesTable])
+    query = sqla.select(messagesTable)
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
         print(rows)
 
 
-def verifyUser(uId, password):
-    if ((uId == "") or (password == "")):
+def verifyUser(userId, password):
+    if ((userId == "") or (password == "")):
         return False
 
     rows = []
-    condition = usersTable.columns.id == uId
-    query = sqla.select([usersTable]).where(condition)
+    condition = usersTable.columns.userId == userId
+    query = sqla.select(usersTable).where(condition)
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
 
     if len(rows) == 0:
         return False
 
-    if (str((rows[0][COLUMN_USER_ID]) == str(uId)) and
+    if (str((rows[0][COLUMN_USER_ID]) == str(userId)) and
             (str(rows[0][COLUMN_PASSWORD]) == str(password))):
         return True
 
@@ -72,14 +76,14 @@ def apiRegisterUser(serverConn, payload):
         return
 
     success = False
-    condition = usersTable.columns.id == payload[KEY_USER_ID]
-    query = sqla.select([usersTable]).where(condition)
+    condition = usersTable.columns.userId == payload[KEY_USER_ID]
+    query = sqla.select(usersTable).where(condition)
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
 
         if len(rows) == 0:
             query = sqla.insert(usersTable).values(
-                id=payload[KEY_USER_ID], password=payload[KEY_PASSOWRD])
+                userId=payload[KEY_USER_ID], password=payload[KEY_PASSOWRD])
             dbConn.execute(query)
             activeUsers[payload[KEY_USER_ID]] = serverConn
             payload = RESPONSE_REGISTER_OK
@@ -102,8 +106,8 @@ def apiLoginUser(serverConn, payload):
         return
 
     rows = []
-    condition = usersTable.columns.id == payload[KEY_USER_ID]
-    query = sqla.select([usersTable]).where(condition)
+    condition = usersTable.columns.userId == payload[KEY_USER_ID]
+    query = sqla.select(usersTable).where(condition)
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
 
@@ -144,14 +148,14 @@ def apiLogoutUser(serverConn, payload):
 
 def apiGetUsers(serverConn, payload):
     userList = []
-    query = sqla.select([usersTable])
+    query = sqla.select(usersTable)
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
         for user in rows:
             condition = sqla.and_(sqla.not_(messagesTable.columns.read),
                                   messagesTable.columns.dstId == payload[KEY_USER_ID],
                                   messagesTable.columns.srcId == user[0])
-            query = sqla.select([messagesTable]).where(condition)
+            query = sqla.select(messagesTable).where(condition)
             count = len(dbConn.execute(query).fetchall())
             userList.append({KEY_CHAT_ID: user[0], KEY_ACTIVE: user[0]
                             in activeUsers, KEY_COUNT: count})
@@ -164,7 +168,7 @@ def apiUnredCount(serverConn, payload):
     condition = sqla.and_(sqla.not_(messagesTable.columns.read),
                           messagesTable.columns.dstId == payload[KEY_USER_ID],
                           messagesTable.columns.srcId == payload[KEY_CHAT_ID])
-    query = sqla.select([messagesTable]).where(condition)
+    query = sqla.select(messagesTable).where(condition)
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
     payload = {KEY_ACTION: ACTION_GET_USERS, KEY_DATA: len(rows)}
@@ -188,14 +192,15 @@ def apiMessageHistory(serverConn, payload):
         condition2 = sqla.and_(messagesTable.columns.dstId == payload[KEY_CHAT_ID],
                                messagesTable.columns.srcId == payload[KEY_USER_ID])
         condition = sqla.or_(condition1, condition2)
-    query = sqla.select([messagesTable]).where(condition)
+    query = sqla.select(messagesTable).where(condition)
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
 
     messageList = []
     for message in rows:
-        messageList.append({KEY_SRC_ID: message[0], KEY_CHAT_ID: payload[KEY_CHAT_ID],
-                            KEY_MSG: message[2], KEY_READ: message[3], KEY_TIMESTAMP: message[4]})
+        messageList.append({KEY_MESSAGE_ID: message[0], KEY_SRC_ID: message[1],
+                            KEY_CHAT_ID: payload[KEY_CHAT_ID], KEY_MSG: message[3],
+                            KEY_READ: message[4], KEY_TIMESTAMP: message[5]})
     payload = {KEY_ACTION: ACTION_RECIEVE,
                KEY_DATA: messageList[-payload[KEY_COUNT]:]}
     serverConn.send(payload)
@@ -212,14 +217,15 @@ def apiRecieveMessages(serverConn, payload):
     condition = sqla.and_(sqla.not_(messagesTable.columns.read),
                           messagesTable.columns.dstId == payload[KEY_USER_ID],
                           messagesTable.columns.srcId == payload[KEY_CHAT_ID])
-    query = sqla.select([messagesTable]).where(condition)
+    query = sqla.select(messagesTable).where(condition)
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
 
     messageList = []
     for message in rows:
-        messageList.append({KEY_SRC_ID: message[0], KEY_CHAT_ID: payload[KEY_CHAT_ID],
-                            KEY_MSG: message[2], KEY_READ: message[3], KEY_TIMESTAMP: message[4]})
+        messageList.append({KEY_MESSAGE_ID: message[0], KEY_SRC_ID: message[1],
+                            KEY_CHAT_ID: payload[KEY_CHAT_ID], KEY_MSG: message[3],
+                            KEY_READ: message[4], KEY_TIMESTAMP: message[5]})
     payload = {KEY_ACTION: ACTION_RECIEVE, KEY_DATA: messageList}
     serverConn.send(payload)
 
@@ -231,11 +237,9 @@ def apiMarkRead(serverConn, payload):
         serverConn.send(payload)
         return
 
-    condition = sqla.and_(messagesTable.columns.srcId == payload[KEY_CHAT_ID],
-                          messagesTable.columns.dstId == payload[KEY_USER_ID],
-                          messagesTable.columns.timestamp == payload[KEY_TIMESTAMP])
+    condition = sqla.and_(messagesTable.columns.messageId == payload[KEY_MESSAGE_ID],
+                          messagesTable.columns.dstId == payload[KEY_USER_ID])
     query = sqla.update(messagesTable).values(read=True).where(condition)
-    # TODO LMAO using time as message id
     with dbEngine.connect() as dbConn:
         dbConn.execute(query)
 
@@ -261,13 +265,15 @@ def apiSend(serverConn, payload):
                                               read=read,
                                               timestamp=payload[KEY_TIMESTAMP])
     with dbEngine.connect() as dbConn:
-        dbConn.execute(query)
+        # TODO clean after notify implementation
+        messageId = dbConn.execute(query).inserted_primary_key[0]
 
     targetUser = payload[KEY_CHAT_ID]
     if targetUser == payload[KEY_USER_ID]:
         targetUser = None
     if targetUser in activeUsers:  # TODO replace with notify
-        payload = {KEY_SRC_ID: payload[KEY_USER_ID],
+        payload = {KEY_MESSAGE_ID: messageId,
+                   KEY_SRC_ID: payload[KEY_USER_ID],
                    KEY_CHAT_ID: payload[KEY_USER_ID],
                    KEY_MSG: payload[KEY_MSG],
                    KEY_READ: False,
@@ -298,7 +304,7 @@ def apiSendEveryone(serverConn, payload):
 
     payload = {KEY_SRC_ID: payload[KEY_USER_ID],  # TODO replace with notify
                KEY_CHAT_ID: "",
-               KEY_MSG: payload[KEY_MSG],
+               KEY_MSG: payload[KEY_MSG],   # tmp no messageId
                KEY_READ: True,
                KEY_TIMESTAMP: payload[KEY_TIMESTAMP]}
     payload = {KEY_ACTION: ACTION_RECIEVE, KEY_DATA: [payload]}
@@ -352,6 +358,7 @@ if __name__ == "__main__":
     socketServer.bind((HOST_ADRESS, HOST_PORT))
     socketServer.listen(5)
 
+    print("Listening for connections...")
     while True:
         clientSocket = socketServer.accept()[0]
         clientConnections.append(ConnectionHandler(
