@@ -252,14 +252,20 @@ def apiSend(serverConn, payload):
         serverConn.send(payload)
         return
 
+    read = False
+    if payload[KEY_CHAT_ID] == payload[KEY_USER_ID]:
+        read = True
     query = sqla.insert(messagesTable).values(srcId=payload[KEY_USER_ID],
                                               dstId=payload[KEY_CHAT_ID],
                                               msg=payload[KEY_MSG],
+                                              read=read,
                                               timestamp=payload[KEY_TIMESTAMP])
     with dbEngine.connect() as dbConn:
         dbConn.execute(query)
 
     targetUser = payload[KEY_CHAT_ID]
+    if targetUser == payload[KEY_USER_ID]:
+        targetUser = None
     if targetUser in activeUsers:  # TODO replace with notify
         payload = {KEY_SRC_ID: payload[KEY_USER_ID],
                    KEY_CHAT_ID: payload[KEY_USER_ID],
