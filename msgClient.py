@@ -163,9 +163,13 @@ class Gui(tk.Frame):
                 ACTION_REGISTER: lambda _, res: self.recieveRegisterLoginUser(res),
                 ACTION_GET_USERS: lambda _, res: self.recieveUpdateUserList(res),
                 ACTION_RECIEVE: lambda _, res: self.recieveMessage(res),
+                "onCollapse": lambda _: self.recieveLogoutUser(RESPONSE_LOGOUT_OK)
             }
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((HOST_ADRESS, HOST_PORT))
+            try:
+                sock.connect((HOST_ADRESS, HOST_PORT))
+            except ConnectionRefusedError:
+                return
             self.connectionHandler = ConnectionHandler(
                 sock,  maping, self.threadLock)
             self.connectionHandler.start()

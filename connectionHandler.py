@@ -37,7 +37,7 @@ class ConnectionHandler(threading.Thread):
             return None
         msgLen = int.from_bytes(rawMsgLen, "big")
         # Read the message data
-        msg=self.recieveBytes(msgLen)
+        msg = self.recieveBytes(msgLen)
         if msg is None:
             return None
         return msg.decode(encoding="utf-8")
@@ -48,7 +48,11 @@ class ConnectionHandler(threading.Thread):
         while len(data) < n:
             try:
                 packet = self.sock.recv(n - len(data))
-            except (ConnectionAbortedError, ConnectionResetError):
+            except ConnectionResetError:
+                if "onCollapse" in self.maping:
+                    self.maping["onCollapse"](self)
+                return None
+            except ConnectionAbortedError:
                 return None
             if packet is None:
                 return None
@@ -64,7 +68,10 @@ class ConnectionHandler(threading.Thread):
         payload = len(payload).to_bytes(4, "big") + payload
         try:
             self.sock.sendall(payload)
-        except (ConnectionAbortedError, ConnectionResetError):
+        except ConnectionResetError:
+            if "onCollapse" in self.maping:
+                self.maping["onCollapse"](self)
+        except ConnectionAbortedError:
             pass
 
     def kill(self):

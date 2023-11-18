@@ -146,6 +146,14 @@ def apiLogoutUser(serverConn, payload):
     activeUsersForceUpdateUserList()
 
 
+def clientCollapsed(serverConn):
+    uList = list(filter(lambda it: it[1] == serverConn, activeUsers.items()))
+    if len(uList) > 0:
+        activeUsers.pop(uList[0][0])
+    serverConn.kill()
+    activeUsersForceUpdateUserList()
+
+
 def apiGetUsers(serverConn, payload):
     userList = []
     query = sqla.select(usersTable)
@@ -351,7 +359,8 @@ if __name__ == "__main__":
             threadLock.acquire(),
             unregister(clientConnection),
             threadLock.release()
-        )
+        ),
+        "onCollapse": clientCollapsed
     }
 
     socketServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
