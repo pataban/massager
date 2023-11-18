@@ -204,11 +204,10 @@ def apiMessageHistory(serverConn, payload):
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
 
-    messageList = []
-    for message in rows:
-        messageList.append({KEY_MESSAGE_ID: message[0], KEY_SRC_ID: message[1],
-                            KEY_CHAT_ID: payload[KEY_CHAT_ID], KEY_MSG: message[3],
-                            KEY_READ: message[4], KEY_TIMESTAMP: message[5]})
+    messageList = [{KEY_MESSAGE_ID: message[0], KEY_SRC_ID: message[1],
+                    KEY_CHAT_ID: payload[KEY_CHAT_ID], KEY_MSG: message[3],
+                    KEY_READ: message[4], KEY_TIMESTAMP: message[5]}
+                   for message in rows]
     payload = {KEY_ACTION: ACTION_RECIEVE,
                KEY_DATA: messageList[-payload[KEY_COUNT]:]}
     serverConn.send(payload)
@@ -229,11 +228,10 @@ def apiRecieveMessages(serverConn, payload):
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
 
-    messageList = []
-    for message in rows:
-        messageList.append({KEY_MESSAGE_ID: message[0], KEY_SRC_ID: message[1],
-                            KEY_CHAT_ID: payload[KEY_CHAT_ID], KEY_MSG: message[3],
-                            KEY_READ: message[4], KEY_TIMESTAMP: message[5]})
+    messageList = [{KEY_MESSAGE_ID: message[0], KEY_SRC_ID: message[1],
+                    KEY_CHAT_ID: payload[KEY_CHAT_ID], KEY_MSG: message[3],
+                    KEY_READ: message[4], KEY_TIMESTAMP: message[5]}
+                   for message in rows]
     payload = {KEY_ACTION: ACTION_RECIEVE, KEY_DATA: messageList}
     serverConn.send(payload)
 

@@ -93,6 +93,7 @@ class Gui(tk.Frame):
             self.loginResultLabel = tk.Label(self.loginFrame, text="")
             self.loginResultLabel.grid(row=3, column=0, columnspan=2)
         self.loginFrame.pack()
+        self.userIdEntry.focus_set()
 
     def createUserMainLayout(self):
         if self.loginFrame is not None:
@@ -260,12 +261,14 @@ class Gui(tk.Frame):
             self.sendGetNewMessages()
 
     def addMsg(self, message, side):
+        if len(self.msgPanes) >= GUI_DEFAULT_MESSAGE_COUNT:
+            self.msgPanes[0].grid_forget()
+            self.msgPanes.pop(0)
+            for row, msgPane in enumerate(self.msgPanes):
+                msgPane.grid(row=row)
         msgPane = MsgPane(self.msgFrame, message=message, side=side)
         msgPane.grid(row=len(self.msgPanes), column=0, sticky=side)
         self.msgPanes.append(msgPane)
-        if len(self.msgPanes) > GUI_DEFAULT_MESSAGE_COUNT:
-            self.msgPanes[0].grid_forget()
-            self.msgPanes.pop(0)
 
     def sendMessage(self, _=None):
         if self.selectedChatId == "":
