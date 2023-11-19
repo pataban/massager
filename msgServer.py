@@ -95,7 +95,7 @@ def apiRegisterUser(serverConn, payload):
         payload = {KEY_ACTION: ACTION_REGISTER, KEY_DATA: payload}
     serverConn.send(payload)
     if success:
-        activeUsersForceUpdateUserList()
+        notify(ACTION_NOTIFY_USERS_UPDATE)
 
 
 def apiLoginUser(serverConn, payload):
@@ -128,7 +128,7 @@ def apiLoginUser(serverConn, payload):
     payload = RESPONSE_LOGIN_OK
     payload = {KEY_ACTION: ACTION_LOGIN, KEY_DATA: payload}
     serverConn.send(payload)
-    activeUsersForceUpdateUserList()
+    notify(ACTION_NOTIFY_USERS_UPDATE)
 
 
 def apiLogoutUser(serverConn, payload):
@@ -143,7 +143,7 @@ def apiLogoutUser(serverConn, payload):
     payload = {KEY_ACTION: ACTION_LOGOUT, KEY_DATA: payload}
     serverConn.send(payload)
     serverConn.kill()
-    activeUsersForceUpdateUserList()
+    notify(ACTION_NOTIFY_USERS_UPDATE)
 
 
 def clientCollapsed(serverConn):
@@ -151,7 +151,7 @@ def clientCollapsed(serverConn):
     if len(uList) > 0:
         activeUsers.pop(uList[0][0])
     serverConn.kill()
-    activeUsersForceUpdateUserList()
+    notify(ACTION_NOTIFY_USERS_UPDATE)
 
 
 def apiGetUsers(serverConn, payload):
@@ -171,7 +171,7 @@ def apiGetUsers(serverConn, payload):
     serverConn.send(payload)
 
 
-def apiUnredCount(serverConn, payload):
+def apiUnreadCount(serverConn, payload):
     rows = []
     condition = sqla.and_(sqla.not_(messagesTable.columns.read),
                           messagesTable.columns.dstId == payload[KEY_USER_ID],
@@ -244,15 +244,20 @@ def apiMarkRead(serverConn, payload):
         return
 
     condition = sqla.and_(messagesTable.columns.messageId == payload[KEY_MESSAGE_ID],
+                          messagesTable.columns.srcId == payload[KEY_CHAT_ID],
                           messagesTable.columns.dstId == payload[KEY_USER_ID])
     query = sqla.update(messagesTable).values(read=True).where(condition)
     with dbEngine.connect() as dbConn:
         dbConn.execute(query)
 
+    target = payload[KEY_CHAT_ID]
+    payload = {KEY_CHAT_ID: payload[KEY_USER_ID],
+               KEY_MESSAGE_ID: payload[KEY_MESSAGE_ID]}
+    notify(ACTION_NOTIFY_MARK_READ, target=target, payload=payload)
+
     payload = RESPONSE_MARK_READ_OK
     payload = {KEY_ACTION: ACTION_MARK_READ, KEY_DATA: payload}
     serverConn.send(payload)
-    activeUsersForceUpdateUserList()
 
 
 def apiSend(serverConn, payload):
@@ -262,35 +267,24 @@ def apiSend(serverConn, payload):
         serverConn.send(payload)
         return
 
-    read = False
-    if payload[KEY_CHAT_ID] == payload[KEY_USER_ID]:
-        read = True
-    query = sqla.insert(messagesTable).values(srcId=payload[KEY_USER_ID],
-                                              dstId=payload[KEY_CHAT_ID],
-                                              msg=payload[KEY_MSG],
-                                              read=read,
-                                              timestamp=payload[KEY_TIMESTAMP])
+    query = sqla.insert(messagesTable).values(
+        srcId=payload[KEY_USER_ID],
+        dstId=payload[KEY_CHAT_ID],
+        msg=payload[KEY_MSG],
+        read=payload[KEY_CHAT_ID] == payload[KEY_USER_ID],
+        timestamp=payload[KEY_TIMESTAMP]
+    )
     with dbEngine.connect() as dbConn:
-        # TODO clean after notify implementation
-        messageId = dbConn.execute(query).inserted_primary_key[0]
+        dbConn.execute(query)
 
-    targetUser = payload[KEY_CHAT_ID]
-    if targetUser == payload[KEY_USER_ID]:
-        targetUser = None
-    if targetUser in activeUsers:  # TODO replace with notify
-        payload = {KEY_MESSAGE_ID: messageId,
-                   KEY_SRC_ID: payload[KEY_USER_ID],
-                   KEY_CHAT_ID: payload[KEY_USER_ID],
-                   KEY_MSG: payload[KEY_MSG],
-                   KEY_READ: False,
-                   KEY_TIMESTAMP: payload[KEY_TIMESTAMP]}
-        payload = {KEY_ACTION: ACTION_RECIEVE, KEY_DATA: [payload]}
-        activeUsers[targetUser].send(payload)
+    if payload[KEY_CHAT_ID] != payload[KEY_USER_ID]:
+        target = payload[KEY_CHAT_ID]
+        payload = {KEY_CHAT_ID: payload[KEY_USER_ID]}
+        notify(ACTION_NOTIFY_NEW_MESSAGE, target=target, payload=payload)
 
     payload = RESPONSE_SEND_OK
     payload = {KEY_ACTION: ACTION_SEND, KEY_DATA: payload}
     serverConn.send(payload)
-    activeUsersForceUpdateUserList()
 
 
 def apiSendEveryone(serverConn, payload):
@@ -308,25 +302,26 @@ def apiSendEveryone(serverConn, payload):
     with dbEngine.connect() as dbConn:
         dbConn.execute(query)
 
-    payload = {KEY_SRC_ID: payload[KEY_USER_ID],  # TODO replace with notify
-               KEY_CHAT_ID: "",
-               KEY_MSG: payload[KEY_MSG],   # tmp no messageId
-               KEY_READ: True,
-               KEY_TIMESTAMP: payload[KEY_TIMESTAMP]}
-    payload = {KEY_ACTION: ACTION_RECIEVE, KEY_DATA: [payload]}
-    for user in activeUsers.values():
-        if user != serverConn:
-            user.send(payload)
+    exclude = payload[KEY_USER_ID]
+    payload = {KEY_CHAT_ID: ""}
+    notify(ACTION_NOTIFY_NEW_MESSAGE, exclude=exclude, payload=payload)
 
     payload = RESPONSE_SEND_EVERYONE_OK
     payload = {KEY_ACTION: ACTION_SEND_EVERYONE, KEY_DATA: payload}
     serverConn.send(payload)
-    activeUsersForceUpdateUserList()
 
 
-def activeUsersForceUpdateUserList():   # TODO replace with notify
-    for uId, serverConn in activeUsers.items():
-        apiGetUsers(serverConn, {KEY_USER_ID: uId})
+def notify(action, target="", exclude=None, payload=None):
+    if payload is None:
+        payload = {KEY_ACTION: action, KEY_DATA: None}
+    else:
+        payload = {KEY_ACTION: action, KEY_DATA: payload}
+    if target == "":
+        for activeUser in list(filter(lambda k: k != exclude, activeUsers.keys())):
+            activeUsers[activeUser].send(payload)
+    else:
+        if target in activeUsers:
+            activeUsers[target].send(payload)
 
 
 def unregister(clientConnection):
@@ -347,7 +342,7 @@ if __name__ == "__main__":
         ACTION_LOGOUT: apiLogoutUser,
         ACTION_REGISTER: apiRegisterUser,
         ACTION_GET_USERS: apiGetUsers,
-        ACTION_UNRED_COUNT: apiUnredCount,
+        ACTION_UNRED_COUNT: apiUnreadCount,
         ACTION_MESSAGE_HISTORY: apiMessageHistory,
         ACTION_RECIEVE: apiRecieveMessages,
         ACTION_MARK_READ: apiMarkRead,

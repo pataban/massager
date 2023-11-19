@@ -164,6 +164,9 @@ class Gui(tk.Frame):
                 ACTION_REGISTER: lambda _, res: self.recieveRegisterLoginUser(res),
                 ACTION_GET_USERS: lambda _, res: self.recieveUpdateUserList(res),
                 ACTION_RECIEVE: lambda _, res: self.recieveMessage(res),
+                ACTION_NOTIFY_USERS_UPDATE: lambda _, data: self.recieveNotifyUsersUpdate(data),
+                ACTION_NOTIFY_NEW_MESSAGE: lambda _, data: self.recieveNotifyNewMessage(data),
+                ACTION_NOTIFY_MARK_READ: lambda _, data: self.recieveNotifyMarkRead(data),
                 "onCollapse": lambda _: self.recieveLogoutUser(RESPONSE_LOGOUT_OK)
             }
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -242,6 +245,7 @@ class Gui(tk.Frame):
         self.connectionHandler.send(payload)
 
     def recieveMessage(self, result):
+        updateUserlist = False
         for message in result:
             if self.selectedChatId in (message[KEY_SRC_ID], message[KEY_CHAT_ID]):
                 self.addMsg(
@@ -256,6 +260,10 @@ class Gui(tk.Frame):
                                KEY_TIMESTAMP: message[KEY_TIMESTAMP]}
                     payload = {KEY_ACTION: ACTION_MARK_READ, KEY_DATA: payload}
                     self.connectionHandler.send(payload)
+
+                updateUserlist = True
+        if updateUserlist:
+            self.sendUpdateUserList()
         if self.recieveMessagesAppendGetNew:
             self.recieveMessagesAppendGetNew = False
             self.sendGetNewMessages()
@@ -284,6 +292,19 @@ class Gui(tk.Frame):
         payload[KEY_DATA][KEY_READ] = False
         self.addMsg(payload[KEY_DATA], side="e")
         self.msgEntry.delete(0, tk.END)
+
+    def recieveNotifyUsersUpdate(self, _):
+        self.sendUpdateUserList()
+
+    def recieveNotifyNewMessage(self, payload):
+        if payload[KEY_CHAT_ID] == self.selectedChatId:
+            self.sendGetNewMessages()
+        else:
+            self.sendUpdateUserList()
+
+    def recieveNotifyMarkRead(self, payload):
+        if payload[KEY_CHAT_ID] == self.selectedChatId:
+            pass  # TODO update message.read in chat Frame
 
     def onClose(self):
         if self.connectionHandler is not None:

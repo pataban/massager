@@ -35,6 +35,9 @@ ACTION_RECIEVE = "recieve"
 ACTION_MARK_READ = "markRead"
 ACTION_SEND = "send"
 ACTION_SEND_EVERYONE = "sendEveryone"
+ACTION_NOTIFY_USERS_UPDATE = "notifyUsersUpdate"
+ACTION_NOTIFY_NEW_MESSAGE = "notifyNewMessage"
+ACTION_NOTIFY_MARK_READ = "notifyMarkRead"
 
 # message keys
 KEY_ACTION = "action"
