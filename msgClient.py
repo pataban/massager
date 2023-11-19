@@ -14,23 +14,34 @@ class MsgPane(tk.Frame):
         super().__init__(master)
         self.message = message
         self.side = side
-        self.showInfo = False
+        self.showInfo = True
 
         msgInfoFont = font.Font(size=GUI_MESSAGE_INFO_SIZE)
         self.msgInfo = tk.Label(self, font=msgInfoFont)
+        self.msgSrc = tk.Label(
+            self, text=self.message[KEY_SRC_ID], font=msgInfoFont)
 
         self.msg = tk.Button(self, text=self.message[KEY_MSG],
-                             background=GUI_MESSAGE_COLOR,
-                             command=self.toggleInfo)
-        self.msg.grid(row=1, column=0, sticky="n"+self.side)
+                             background=GUI_SEND_MESSAGE_COLOR if self.side == "right"
+                             else GUI_MESSAGE_COLOR, command=self.toggleInfo)
 
         self.updateMsgInfo()
+        self.toggleInfo()
 
     def toggleInfo(self):
         if not self.showInfo:
-            self.msgInfo.grid(row=0, column=0, sticky="s"+self.side)
+            self.msgInfo.pack(side="top")
         else:
-            self.msgInfo.grid_forget()
+            self.msgInfo.pack_forget()
+
+        self.msg.pack_forget()
+        self.msg.pack(side=self.side)
+
+        if not self.showInfo:
+            self.msgSrc.pack(side=self.side)
+        else:
+            self.msgSrc.pack_forget()
+
         self.showInfo = not self.showInfo
 
     def updateMsgInfo(self):
@@ -135,13 +146,15 @@ class Gui(tk.Frame):
             self.chatFrame = tk.Frame(self.userMainFrame)
 
             self.chatInfoLabel = tk.Label(self.chatFrame, text="")
-            self.chatInfoLabel.grid(row=0)
+            self.chatInfoLabel.pack(side="top", fill="x")
 
             self.msgFrame = tk.Frame(self.chatFrame)
-            self.msgFrame.grid(row=1)
+            self.msgFrame.pack(side="top", fill="x",
+                               padx=GUI_MSG_FRAME_PADDING,
+                               pady=GUI_MSG_FRAME_PADDING)
 
             msgEntryFrame = tk.Frame(self.chatFrame)
-            msgEntryFrame.grid(row=2)
+            msgEntryFrame.pack(side="bottom", fill="x")
             self.msgEntry = tk.Entry(msgEntryFrame)
             self.msgEntry.pack(side="left")
             self.msgEntry.bind("<Return>", self.sendMessage)
@@ -153,7 +166,7 @@ class Gui(tk.Frame):
         if self.selectedChatId == ALL_CHAT_ID:
             self.chatInfoLabel["text"] += GUI_ALL_CHAT_LABEL
         for mp in self.msgPanes:
-            mp.grid_forget()
+            mp.pack_forget()
         self.msgPanes = []
         self.recieveMessagesAppendGetNew = True
         self.sendGetMessageHistory()
@@ -271,8 +284,8 @@ class Gui(tk.Frame):
                     self.connectionHandler.send(payload)
                     message[KEY_READ] = True
 
-                self.addMsg(message,
-                            side="e" if message[KEY_SRC_ID] == self.userId else "w")
+                self.addMsg(
+                    message, side="right" if message[KEY_SRC_ID] == self.userId else "left")
                 updateUserlist = True
         if updateUserlist:
             self.sendUpdateUserList()
@@ -282,28 +295,27 @@ class Gui(tk.Frame):
 
     def addMsg(self, message, side):
         if len(self.msgPanes) >= GUI_DEFAULT_MESSAGE_COUNT:
-            self.msgPanes[0].grid_forget()
+            self.msgPanes[0].pack_forget()
             self.msgPanes.pop(0)
-            for row, msgPane in enumerate(self.msgPanes):
-                msgPane.grid(row=row)
         msgPane = MsgPane(self.msgFrame, message=message, side=side)
-        msgPane.grid(row=len(self.msgPanes), column=0, sticky=side)
+        msgPane.pack(side="top", fill="x")
         self.msgPanes.append(msgPane)
 
     def sendMessage(self, _=None):
         if self.selectedChatId == ALL_CHAT_ID:
             payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
-                       KEY_TMP_MESSAGE_ID: time_ns(), KEY_MSG: self.msgEntry.get(),
-                       KEY_TIMESTAMP: datetime.now()}
+                       KEY_TMP_MESSAGE_ID: time_ns(), KEY_SRC_ID: self.userId,
+                       KEY_MSG: self.msgEntry.get(), KEY_TIMESTAMP: datetime.now()}
             payload = {KEY_ACTION: ACTION_SEND_EVERYONE, KEY_DATA: payload}
         else:
             payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
                        KEY_TMP_MESSAGE_ID: time_ns(), KEY_CHAT_ID: self.selectedChatId,
-                       KEY_MSG: self.msgEntry.get(), KEY_TIMESTAMP: datetime.now()}
+                       KEY_SRC_ID: self.userId, KEY_MSG: self.msgEntry.get(),
+                       KEY_TIMESTAMP: datetime.now()}
             payload = {KEY_ACTION: ACTION_SEND, KEY_DATA: payload}
         self.connectionHandler.send(payload)
         payload[KEY_DATA][KEY_READ] = False
-        self.addMsg(payload[KEY_DATA], side="e")
+        self.addMsg(payload[KEY_DATA], side="right")
         self.msgEntry.delete(0, tk.END)
 
     def sendMessageResponse(self, payload):
