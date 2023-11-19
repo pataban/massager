@@ -1,5 +1,6 @@
 import socket
 import threading
+import datetime
 import sqlalchemy as sqla
 
 from connectionHandler import ConnectionHandler
@@ -164,9 +165,26 @@ def apiGetUsers(serverConn, payload):
                                   messagesTable.columns.dstId == payload[KEY_USER_ID],
                                   messagesTable.columns.srcId == user[0])
             query = sqla.select(messagesTable).where(condition)
-            count = len(dbConn.execute(query).fetchall())
+            unreadCount = len(dbConn.execute(query).fetchall())
+
+            condition = sqla.and_(messagesTable.columns.dstId == user[0],
+                                  messagesTable.columns.srcId == payload[KEY_USER_ID])
+            query = sqla.select(messagesTable).where(condition)
+            query = query.order_by(sqla.desc(messagesTable.columns.timestamp))
+            query = query.limit(1)
+            row = dbConn.execute(query).fetchone()
+            if row is None:
+                lastSend = datetime.timedelta.max
+            else:
+                lastSend = datetime.datetime.min-row[5]
+
             userList.append({KEY_CHAT_ID: user[0], KEY_ACTIVE: user[0]
-                            in activeUsers, KEY_COUNT: count})
+                            in activeUsers, KEY_COUNT: unreadCount, "lastSend": lastSend})
+
+    userList.sort(key=lambda user: (
+        user["lastSend"], not user[KEY_ACTIVE], user[KEY_CHAT_ID]))
+    for user in userList:
+        user.pop("lastSend")
     payload = {KEY_ACTION: ACTION_GET_USERS, KEY_DATA: userList}
     serverConn.send(payload)
 
@@ -201,15 +219,18 @@ def apiMessageHistory(serverConn, payload):
                                messagesTable.columns.srcId == payload[KEY_USER_ID])
         condition = sqla.or_(condition1, condition2)
     query = sqla.select(messagesTable).where(condition)
+    query = query.order_by(sqla.desc(messagesTable.columns.timestamp))
+    query = query.limit(payload[KEY_COUNT])
     with dbEngine.connect() as dbConn:
         rows = dbConn.execute(query).fetchall()
+        rows.reverse()
 
     messageList = [{KEY_MESSAGE_ID: message[0], KEY_SRC_ID: message[1],
                     KEY_CHAT_ID: payload[KEY_CHAT_ID], KEY_MSG: message[3],
                     KEY_READ: message[4], KEY_TIMESTAMP: message[5]}
                    for message in rows]
     payload = {KEY_ACTION: ACTION_RECIEVE,
-               KEY_DATA: messageList[-payload[KEY_COUNT]:]}
+               KEY_DATA: messageList}
     serverConn.send(payload)
 
 
