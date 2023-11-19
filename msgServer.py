@@ -383,7 +383,7 @@ if __name__ == "__main__":
     }
 
     socketServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    socketServer.bind((HOST_ADRESS, HOST_PORT))
+    socketServer.bind(("0.0.0.0", HOST_PORT))
     socketServer.listen(5)
 
     print(SERVER_STARTUP_NOTICE)
