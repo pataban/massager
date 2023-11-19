@@ -2,7 +2,7 @@ import json
 import threading
 
 from utils import *
-from constants import DEBUG
+from constants import *
 
 
 class ConnectionHandler(threading.Thread):
@@ -24,11 +24,12 @@ class ConnectionHandler(threading.Thread):
             if msg is not None:
                 payload = json.loads(msg, object_hook=datetimeDeserializer)
                 with self.threadLock:
-                    if payload["action"] in self.maping:
-                        self.maping[payload["action"]](self, payload["data"])
+                    if payload[KEY_ACTION] in self.maping:
+                        self.maping[payload[KEY_ACTION]](
+                            self, payload[KEY_DATA])
 
-        if "onClose" in self.maping:
-            self.maping["onClose"](self)
+        if HOOK_ON_CLOSE in self.maping:
+            self.maping[HOOK_ON_CLOSE](self)
 
     def recieveMsg(self):
         # Read message length and unpack it into an integer
@@ -36,6 +37,7 @@ class ConnectionHandler(threading.Thread):
         if rawMsgLen is None:
             return None
         msgLen = int.from_bytes(rawMsgLen, "big")
+
         # Read the message data
         msg = self.recieveBytes(msgLen)
         if msg is None:
@@ -49,8 +51,8 @@ class ConnectionHandler(threading.Thread):
             try:
                 packet = self.sock.recv(n - len(data))
             except ConnectionResetError:
-                if "onCollapse" in self.maping:
-                    self.maping["onCollapse"](self)
+                if HOOK_ON_COLLAPSE in self.maping:
+                    self.maping[HOOK_ON_COLLAPSE](self)
                 return None
             except ConnectionAbortedError:
                 return None
@@ -64,13 +66,14 @@ class ConnectionHandler(threading.Thread):
             print("sending:", payload, "\n")
         payload = json.dumps(
             payload, default=datetimeSerializer).encode("utf-8")
+
         # Prefix each message with a 4-byte length (network byte order)
         payload = len(payload).to_bytes(4, "big") + payload
         try:
             self.sock.sendall(payload)
         except ConnectionResetError:
-            if "onCollapse" in self.maping:
-                self.maping["onCollapse"](self)
+            if HOOK_ON_COLLAPSE in self.maping:
+                self.maping[HOOK_ON_COLLAPSE](self)
         except ConnectionAbortedError:
             pass
 

@@ -149,7 +149,7 @@ class Gui(tk.Frame):
             msgEntryButton.pack(side="right")
         self.chatFrame.pack(side="right")
         self.chatInfoLabel["text"] = GUI_CHAT_LABEL+self.selectedChatId
-        if self.selectedChatId == "":
+        if self.selectedChatId == ALL_CHAT_ID:
             self.chatInfoLabel["text"] += GUI_ALL_CHAT_LABEL
         for mp in self.msgPanes:
             mp.grid_forget()
@@ -175,7 +175,8 @@ class Gui(tk.Frame):
                 ACTION_NOTIFY_USERS_UPDATE: lambda _, data: self.recieveNotifyUsersUpdate(data),
                 ACTION_NOTIFY_NEW_MESSAGE: lambda _, data: self.recieveNotifyNewMessage(data),
                 ACTION_NOTIFY_MARK_READ: lambda _, data: self.recieveNotifyMarkRead(data),
-                "onCollapse": lambda _: self.recieveLogoutUser(RESPONSE_LOGOUT_OK)
+                HOOK_ON_COLLAPSE: lambda _: self.recieveLogoutUser(
+                    RESPONSE_LOGOUT_OK)
             }
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
@@ -216,7 +217,7 @@ class Gui(tk.Frame):
         self.userListbox.delete(0, tk.END)
         self.userList = []
         self.userListbox.insert(1, GUI_ALL_CHAT_LABEL)
-        self.userList.append(("", True, float("inf")))
+        self.userList.append((ALL_CHAT_ID, True, float("inf")))
         for user in result:
             self.userList.append(
                 (user[KEY_CHAT_ID], user[KEY_ACTIVE], user[KEY_COUNT]))
@@ -287,7 +288,7 @@ class Gui(tk.Frame):
         self.msgPanes.append(msgPane)
 
     def sendMessage(self, _=None):
-        if self.selectedChatId == "":
+        if self.selectedChatId == ALL_CHAT_ID:
             payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
                        KEY_MSG: self.msgEntry.get(), KEY_TIMESTAMP: datetime.now()}
             payload = {KEY_ACTION: ACTION_SEND_EVERYONE, KEY_DATA: payload}

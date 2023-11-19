@@ -1,5 +1,5 @@
 from datetime import datetime
-from constants import TIMESTAMP_FORMAT
+from constants import TIMESTAMP_FORMAT, KEY_TIMESTAMP
 
 
 def datetimeSerializer(obj):
@@ -10,6 +10,6 @@ def datetimeSerializer(obj):
 
 def datetimeDeserializer(jsonDict):
     for k, v in jsonDict.items():
-        if k == "timestamp":
+        if k == KEY_TIMESTAMP:
             jsonDict[k] = datetime.strptime(v, TIMESTAMP_FORMAT)
     return jsonDict

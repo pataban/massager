@@ -2,9 +2,14 @@
 
 # general
 DEBUG = True
+TEST_USERS = [("qwe", "rty"), ("asd", "fgh"), ("zxc", "vbn")]
 HOST_ADRESS = "127.0.0.1"
 HOST_PORT = 5000
 TIMESTAMP_FORMAT = "%d.%m.%Y %H:%M:%S"
+ALL_CHAT_ID = ""
+HOOK_ON_CLOSE = "onClose"
+HOOK_ON_COLLAPSE = "onCollapse"
+SERVER_STARTUP_NOTICE = "Listening for connections..."
 
 # DB settings
 DB_URL = "sqlite:///msgServer.db"

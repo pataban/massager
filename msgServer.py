@@ -191,8 +191,8 @@ def apiMessageHistory(serverConn, payload):
         return
 
     rows = []
-    if payload[KEY_CHAT_ID] == "":
-        condition = messagesTable.columns.dstId == ""
+    if payload[KEY_CHAT_ID] == ALL_CHAT_ID:
+        condition = messagesTable.columns.dstId == ALL_CHAT_ID
     else:
         condition1 = sqla.and_(messagesTable.columns.read,
                                messagesTable.columns.dstId == payload[KEY_USER_ID],
@@ -295,7 +295,7 @@ def apiSendEveryone(serverConn, payload):
         return
 
     query = sqla.insert(messagesTable).values(srcId=payload[KEY_USER_ID],
-                                              dstId="",
+                                              dstId=ALL_CHAT_ID,
                                               msg=payload[KEY_MSG],
                                               read=True,
                                               timestamp=payload[KEY_TIMESTAMP])
@@ -303,7 +303,7 @@ def apiSendEveryone(serverConn, payload):
         dbConn.execute(query)
 
     exclude = payload[KEY_USER_ID]
-    payload = {KEY_CHAT_ID: ""}
+    payload = {KEY_CHAT_ID: ALL_CHAT_ID}
     notify(ACTION_NOTIFY_NEW_MESSAGE, exclude=exclude, payload=payload)
 
     payload = RESPONSE_SEND_EVERYONE_OK
@@ -311,12 +311,12 @@ def apiSendEveryone(serverConn, payload):
     serverConn.send(payload)
 
 
-def notify(action, target="", exclude=None, payload=None):
+def notify(action, target=ALL_CHAT_ID, exclude=None, payload=None):
     if payload is None:
         payload = {KEY_ACTION: action, KEY_DATA: None}
     else:
         payload = {KEY_ACTION: action, KEY_DATA: payload}
-    if target == "":
+    if target == ALL_CHAT_ID:
         for activeUser in list(filter(lambda k: k != exclude, activeUsers.keys())):
             activeUsers[activeUser].send(payload)
     else:
@@ -330,11 +330,11 @@ def unregister(clientConnection):
 
 if __name__ == "__main__":
     if DEBUG:
-        setupTestUser("qwe", "rty")
-        setupTestUser("asd", "fgh")
-        setupTestUser("zxc", "vbn")
+        for testUser in TEST_USERS:
+            setupTestUser(testUser[0], testUser[1])
 
-    # printAllMessages()
+    # if DEBUG:
+        # printAllMessages()
 
     threadLock = threading.Lock()
     maping = {
@@ -348,19 +348,19 @@ if __name__ == "__main__":
         ACTION_MARK_READ: apiMarkRead,
         ACTION_SEND: apiSend,
         ACTION_SEND_EVERYONE: apiSendEveryone,
-        "onClose": lambda clientConnection: (
+        HOOK_ON_CLOSE: lambda clientConnection: (
             threadLock.acquire(),
             unregister(clientConnection),
             threadLock.release()
         ),
-        "onCollapse": clientCollapsed
+        HOOK_ON_COLLAPSE: clientCollapsed
     }
 
     socketServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     socketServer.bind((HOST_ADRESS, HOST_PORT))
     socketServer.listen(5)
 
-    print("Listening for connections...")
+    print(SERVER_STARTUP_NOTICE)
     while True:
         clientSocket = socketServer.accept()[0]
         clientConnections.append(ConnectionHandler(
