@@ -53,7 +53,6 @@ KEY_MSG = "msg"
 KEY_READ = "read"
 KEY_ACTIVE = "active"
 
-
 # server responses
 RESPONSE_REGISTER_OK = "Registered successfully"
 RESPONSE_ERROR_MISSING_LOGIN_DATA = "No id or password provided. Please specify an id and password."

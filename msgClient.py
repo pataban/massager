@@ -11,18 +11,19 @@ from constants import *
 class MsgPane(tk.Frame):
     def __init__(self, master, message, side):
         super().__init__(master)
+        self.message = message
         self.side = side
         self.showInfo = False
 
-        msgInfo = message[KEY_TIMESTAMP].strftime(TIMESTAMP_FORMAT)
-        msgInfo += (GUI_MESSAGE_INFO_READ if message[KEY_READ]
-                    else GUI_MESSAGE_INFO_UNREAD)
         msgInfoFont = font.Font(size=GUI_MESSAGE_INFO_SIZE)
-        self.msgInfo = tk.Label(self, text=msgInfo, font=msgInfoFont)
+        self.msgInfo = tk.Label(self, font=msgInfoFont)
 
-        self.msg = tk.Button(
-            self, text=message[KEY_MSG], background=GUI_MESSAGE_COLOR, command=self.toggleInfo)
+        self.msg = tk.Button(self, text=self.message[KEY_MSG],
+                             background=GUI_MESSAGE_COLOR,
+                             command=self.toggleInfo)
         self.msg.grid(row=1, column=0, sticky="n"+self.side)
+
+        self.updateMsgInfo()
 
     def toggleInfo(self):
         if not self.showInfo:
@@ -30,6 +31,13 @@ class MsgPane(tk.Frame):
         else:
             self.msgInfo.grid_forget()
         self.showInfo = not self.showInfo
+
+    def updateMsgInfo(self):
+        msgInfo = self.message[KEY_TIMESTAMP].strftime(TIMESTAMP_FORMAT)
+        msgInfo += (GUI_MESSAGE_INFO_READ if self.message[KEY_READ]
+                    else GUI_MESSAGE_INFO_UNREAD)
+        self.msgInfo["text"] = msgInfo
+        self.update()
 
 
 class Gui(tk.Frame):
@@ -248,9 +256,6 @@ class Gui(tk.Frame):
         updateUserlist = False
         for message in result:
             if self.selectedChatId in (message[KEY_SRC_ID], message[KEY_CHAT_ID]):
-                self.addMsg(
-                    message, side="e" if message[KEY_SRC_ID] == self.userId else "w")
-
                 if ((not message[KEY_READ]) and
                     (message[KEY_SRC_ID] != self.userId) and
                         (message[KEY_CHAT_ID] == self.selectedChatId)):
@@ -260,7 +265,10 @@ class Gui(tk.Frame):
                                KEY_TIMESTAMP: message[KEY_TIMESTAMP]}
                     payload = {KEY_ACTION: ACTION_MARK_READ, KEY_DATA: payload}
                     self.connectionHandler.send(payload)
+                    message[KEY_READ] = True
 
+                self.addMsg(message,
+                            side="e" if message[KEY_SRC_ID] == self.userId else "w")
                 updateUserlist = True
         if updateUserlist:
             self.sendUpdateUserList()
@@ -304,7 +312,11 @@ class Gui(tk.Frame):
 
     def recieveNotifyMarkRead(self, payload):
         if payload[KEY_CHAT_ID] == self.selectedChatId:
-            pass  # TODO update message.read in chat Frame
+            for msgPane in self.msgPanes:
+                if (KEY_MESSAGE_ID in msgPane.message and
+                        msgPane.message[KEY_MESSAGE_ID] == payload[KEY_MESSAGE_ID]):
+                    msgPane.message[KEY_READ] = True
+                    msgPane.updateMsgInfo()
 
     def onClose(self):
         if self.connectionHandler is not None:
