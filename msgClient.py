@@ -2,6 +2,7 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import font
+from time import time_ns
 from datetime import datetime
 
 from connectionHandler import ConnectionHandler
@@ -172,6 +173,8 @@ class Gui(tk.Frame):
                 ACTION_REGISTER: lambda _, res: self.recieveRegisterLoginUser(res),
                 ACTION_GET_USERS: lambda _, res: self.recieveUpdateUserList(res),
                 ACTION_RECIEVE: lambda _, res: self.recieveMessage(res),
+                ACTION_SEND: lambda _, res: self.sendMessageResponse(res),
+                ACTION_SEND_EVERYONE: lambda _, res: self.sendMessageResponse(res),
                 ACTION_NOTIFY_USERS_UPDATE: lambda _, data: self.recieveNotifyUsersUpdate(data),
                 ACTION_NOTIFY_NEW_MESSAGE: lambda _, data: self.recieveNotifyNewMessage(data),
                 ACTION_NOTIFY_MARK_READ: lambda _, data: self.recieveNotifyMarkRead(data),
@@ -290,17 +293,25 @@ class Gui(tk.Frame):
     def sendMessage(self, _=None):
         if self.selectedChatId == ALL_CHAT_ID:
             payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
-                       KEY_MSG: self.msgEntry.get(), KEY_TIMESTAMP: datetime.now()}
+                       KEY_TMP_MESSAGE_ID: time_ns(), KEY_MSG: self.msgEntry.get(),
+                       KEY_TIMESTAMP: datetime.now()}
             payload = {KEY_ACTION: ACTION_SEND_EVERYONE, KEY_DATA: payload}
         else:
             payload = {KEY_USER_ID: self.userId, KEY_PASSOWRD: self.userPassword,
-                       KEY_CHAT_ID: self.selectedChatId, KEY_MSG: self.msgEntry.get(),
-                       KEY_TIMESTAMP: datetime.now()}
+                       KEY_TMP_MESSAGE_ID: time_ns(), KEY_CHAT_ID: self.selectedChatId,
+                       KEY_MSG: self.msgEntry.get(), KEY_TIMESTAMP: datetime.now()}
             payload = {KEY_ACTION: ACTION_SEND, KEY_DATA: payload}
         self.connectionHandler.send(payload)
         payload[KEY_DATA][KEY_READ] = False
         self.addMsg(payload[KEY_DATA], side="e")
         self.msgEntry.delete(0, tk.END)
+
+    def sendMessageResponse(self, payload):
+        if payload[KEY_CHAT_ID] == self.selectedChatId:
+            for msgPane in self.msgPanes:
+                if (KEY_TMP_MESSAGE_ID in msgPane.message and
+                        msgPane.message[KEY_TMP_MESSAGE_ID] == payload[KEY_TMP_MESSAGE_ID]):
+                    msgPane.message[KEY_MESSAGE_ID] = payload[KEY_MESSAGE_ID]
 
     def recieveNotifyUsersUpdate(self, _):
         self.sendUpdateUserList()

@@ -275,14 +275,17 @@ def apiSend(serverConn, payload):
         timestamp=payload[KEY_TIMESTAMP]
     )
     with dbEngine.connect() as dbConn:
-        dbConn.execute(query)
+        messageId = dbConn.execute(query).inserted_primary_key[0]
+    tmpMessageId = payload[KEY_TMP_MESSAGE_ID]
+    responseChatId = payload[KEY_CHAT_ID]
 
     if payload[KEY_CHAT_ID] != payload[KEY_USER_ID]:
         target = payload[KEY_CHAT_ID]
         payload = {KEY_CHAT_ID: payload[KEY_USER_ID]}
         notify(ACTION_NOTIFY_NEW_MESSAGE, target=target, payload=payload)
 
-    payload = RESPONSE_SEND_OK
+    payload = {KEY_CHAT_ID: responseChatId, KEY_TMP_MESSAGE_ID: tmpMessageId,
+               KEY_MESSAGE_ID: messageId}
     payload = {KEY_ACTION: ACTION_SEND, KEY_DATA: payload}
     serverConn.send(payload)
 
@@ -300,13 +303,15 @@ def apiSendEveryone(serverConn, payload):
                                               read=True,
                                               timestamp=payload[KEY_TIMESTAMP])
     with dbEngine.connect() as dbConn:
-        dbConn.execute(query)
+        messageId = dbConn.execute(query).inserted_primary_key[0]
+    tmpMessageId = payload[KEY_TMP_MESSAGE_ID]
 
     exclude = payload[KEY_USER_ID]
     payload = {KEY_CHAT_ID: ALL_CHAT_ID}
     notify(ACTION_NOTIFY_NEW_MESSAGE, exclude=exclude, payload=payload)
 
-    payload = RESPONSE_SEND_EVERYONE_OK
+    payload = {KEY_CHAT_ID: ALL_CHAT_ID, KEY_TMP_MESSAGE_ID: tmpMessageId,
+               KEY_MESSAGE_ID: messageId}
     payload = {KEY_ACTION: ACTION_SEND_EVERYONE, KEY_DATA: payload}
     serverConn.send(payload)
 
