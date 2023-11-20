@@ -1,3 +1,4 @@
+import os
 
 
 # general
@@ -12,7 +13,16 @@ HOOK_ON_COLLAPSE = "onCollapse"
 SERVER_STARTUP_NOTICE = "Listening for connections..."
 
 # DB settings
-DB_URL = "sqlite:///msgServer.db"
+DB_USER, DB_PASS, DB_HOST, DB_NAME, = "", "", "", ""
+if "DB_USER" in os.environ:
+    DB_USER = os.environ["DB_USER"]
+if "DB_PASS" in os.environ:
+    DB_PASS = os.environ["DB_PASS"]
+if "DB_HOST" in os.environ:
+    DB_HOST = os.environ["DB_HOST"]
+if "DB_NAME" in os.environ:
+    DB_NAME = os.environ["DB_NAME"]
+DB_URL = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}"
 USER_ID_LENGTH = 32
 USER_PASSWORD_LENGTH = 32
 MSG_LENGTH = 255

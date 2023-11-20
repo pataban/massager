@@ -3,6 +3,40 @@ version: "3.0"
 services:
     msgServer:
         image: msgserver
+        depends_on:
+            dbServer:
+                condition: service_healthy
+                restart: true
         restart: always
+        environment:
+            DB_USER: root
+            DB_PASS: MYPassword123
+            DB_HOST: dbServer
+            DB_NAME: msgDB
         ports:
             - 5000:5000
+    
+    dbServer:
+        image: mariadb
+        restart: always
+        environment:
+            MYSQL_ROOT_USER: root
+            MYSQL_ROOT_PASSWORD: MYPassword123
+            MYSQL_DATABASE: msgDB
+        ports:
+            - 5001:3306
+        healthcheck:
+            test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+            start_period: 10s
+            start_interval: 1s
+            interval: 1m
+            timeout: 5s
+            retries: 3
+        
+    adminer:
+        image: adminer
+        depends_on:
+            - dbServer
+        restart: always
+        ports:
+            - 5002:8080
